@@ -1,0 +1,227 @@
+Description,Start Date,Start Time,End Date,End Time,Duration (h)
+Chat (SD-189),10/30/2025,12:12 PM,10/30/2025,7:56 PM,7:44
+Registration (SD-24),09/30/2025,11:49 AM,09/30/2025,7:20 PM,7:31
+User Profile Screen (SD-106),07/31/2025,10:00 AM,07/31/2025,5:30 PM,7:30
+Find A Soulmate (SD-267),12/12/2025,2:04 PM,12/12/2025,8:58 PM,6:54
+Shop (SD-220),11/26/2025,12:31 PM,11/26/2025,7:22 PM,6:51
+User Profile Screen (SD-106),08/20/2025,12:33 PM,08/20/2025,7:24 PM,6:51
+"Connecting Journal, ProfileEdit and ProfileSetup to API",10/07/2025,12:24 PM,10/07/2025,6:58 PM,6:34
+Registration (SD-24),10/06/2025,12:38 PM,10/06/2025,7:10 PM,6:32
+Registration (SD-24),09/19/2025,11:33 AM,09/19/2025,6:02 PM,6:29
+Chat (SD-189),11/03/2025,12:45 PM,11/03/2025,7:11 PM,6:26
+Find A Soulmate(SD-267),12/11/2025,12:59 PM,12/11/2025,7:23 PM,6:24
+View profile (SD-242),11/04/2025,11:54 AM,11/04/2025,6:09 PM,6:15
+Fixing small issues: 157 159 164 165 182,11/10/2025,1:04 PM,11/10/2025,7:15 PM,6:11
+"Last minute fixes/changes (tweak setup flow, handle no first/last name) discussing bugs, debugging, testing, and making builds",02/06/2026,2:00 PM,02/06/2026,8:00 PM,6:00
+Shop UI and payment flow (and a quick little meeting),01/15/2026,12:00 PM,01/15/2026,6:00 PM,6:00
+Shop (SD-220),11/25/2025,1:04 PM,11/25/2025,6:49 PM,5:45
+Registration (SD-24),09/22/2025,12:20 PM,09/22/2025,5:51 PM,5:31
+Finishing up build pipeline; Updating Paywall to follow Karlos suggestions; And then finishing tasks 348 384 401 403,01/29/2026,11:00 PM,01/30/2026,4:30 AM,5:30
+"Setting up .env for prod, and debugging RevenueCat",01/28/2026,2:00 PM,01/28/2026,7:30 PM,5:30
+Adding shipping payment and figuring out why payment keeps saying Pending,01/18/2026,9:00 PM,01/19/2026,2:30 AM,5:30
+Shop History and cleaning up code,01/16/2026,11:30 AM,01/16/2026,5:00 PM,5:30
+Setup Apple Build (SD-312),12/23/2025,12:00 PM,12/23/2025,5:30 PM,5:30
+Fixing bugs,11/05/2025,2:26 PM,11/05/2025,7:44 PM,5:18
+Finalizing new build,10/08/2025,1:44 PM,10/08/2025,7:00 PM,5:16
+"Checking build for bugs, and patching them up, then making the Android build",09/05/2025,12:00 PM,09/05/2025,5:06 PM,5:06
+"Connecting Journal, ProfileEdit and ProfileSetup to API",10/07/2025,9:00 PM,10/08/2025,2:02 AM,5:02
+"So many tickets, and 2 builds",02/01/2026,12:00 AM,02/01/2026,5:00 AM,5:00
+Paywall + Builds,01/25/2026,9:00 PM,01/26/2026,2:00 AM,5:00
+Shop/Shop History/Payment and cleaning up code/making build,01/17/2026,12:00 AM,01/17/2026,5:00 AM,5:00
+Shop SD-220,01/14/2026,12:00 PM,01/14/2026,5:00 PM,5:00
+"Fix Google Sign In, Add Apple Login on iOS, and fix minor other issues(SD-335 SD-337 SD-340) then also make a build and test it",01/12/2026,1:00 PM,01/12/2026,6:00 PM,5:00
+Shop (SD-220),12/17/2025,12:00 PM,12/17/2025,5:00 PM,5:00
+User Profile Screen (SD-106),08/07/2025,9:04 AM,08/07/2025,1:59 PM,4:55
+More Screen (SD-105),07/28/2025,2:01 PM,07/28/2025,6:54 PM,4:53
+Registration (SD-24),09/24/2025,12:38 PM,09/24/2025,5:29 PM,4:51
+Fixing small issues: 164 165 171 182 243 244 252 255,11/13/2025,3:23 PM,11/13/2025,8:10 PM,4:47
+Finish Reporting and blocking users (SD-301 SD-296) and make builds and debug,01/09/2026,3:15 PM,01/09/2026,8:00 PM,4:45
+Profile Bugs,10/15/2025,1:31 PM,10/15/2025,6:15 PM,4:44
+User Profile Screen (SD-106),08/04/2025,1:37 PM,08/04/2025,6:21 PM,4:44
+SD-104,07/11/2025,1:04 PM,07/11/2025,5:48 PM,4:44
+Add Sign in with Google (SD-140),10/14/2025,2:27 PM,10/14/2025,7:09 PM,4:42
+Shop (SD-220),11/17/2025,2:11 PM,11/17/2025,6:52 PM,4:41
+User Profile Screen (SD-106),08/01/2025,1:41 PM,08/01/2025,6:20 PM,4:39
+Shop (SD-220),11/27/2025,12:01 PM,11/27/2025,4:38 PM,4:37
+"Filling in more of the questionaire for deploying, and fixing up Google Sign in",11/12/2025,1:05 PM,11/12/2025,5:42 PM,4:37
+Chat (SD-189),10/27/2025,3:11 PM,10/27/2025,7:43 PM,4:32
+"Resolve Client feedback, resolve minor issues and resolve github comments",09/17/2025,2:22 PM,09/17/2025,6:53 PM,4:31
+"Big batch of tasks (361, 480, 427, 441) + Create build",02/05/2026,8:30 PM,02/06/2026,1:00 AM,4:30
+"Big batch of tasks (473, 465, 479, 425, 451, 434) + Create build",02/05/2026,1:30 PM,02/05/2026,6:00 PM,4:30
+"Minor tasks (463, 433, 304, 252, 182) + Finalize iOS subscriptions + Create build",02/04/2026,1:30 PM,02/04/2026,6:00 PM,4:30
+Create build pipeline to prevent bad build env configs,01/29/2026,4:30 PM,01/29/2026,9:00 PM,4:30
+Paywall,01/21/2026,2:00 PM,01/21/2026,6:30 PM,4:30
+Shop debugging and fixing,01/19/2026,4:30 PM,01/19/2026,9:00 PM,4:30
+Change Language (SD-265) - and 228,12/02/2025,12:43 PM,12/02/2025,5:12 PM,4:29
+Shop (SD-220),12/16/2025,1:17 PM,12/16/2025,5:44 PM,4:27
+Ask Ana (SD-107),08/29/2025,12:53 PM,08/29/2025,5:17 PM,4:24
+Registration (SD-24),09/26/2025,2:21 PM,09/26/2025,6:39 PM,4:18
+Add Google APIs (SD-110),09/12/2025,12:04 PM,09/12/2025,4:12 PM,4:08
+Shop (SD-220),11/19/2025,1:40 PM,11/19/2025,5:46 PM,4:06
+Fix Batch: 174 175 187 188 193 245 290,12/09/2025,12:31 PM,12/09/2025,4:36 PM,4:05
+SD-104,07/21/2025,9:36 AM,07/21/2025,1:38 PM,4:02
+Finish Paywall on videos (SD-416),01/31/2026,3:00 PM,01/31/2026,7:00 PM,4:00
+"Change environments, Review PRs and resolve conflicts, Create builds and lots of debugging",01/29/2026,11:30 AM,01/29/2026,3:30 PM,4:00
+"Configuring RevenueCat, Google Play and AppStore",01/24/2026,11:00 PM,01/25/2026,3:00 AM,4:00
+"Finalizing shop, fixing a few small tasks (344, 335, 301, 182, 345) and making a build",01/20/2026,3:00 AM,01/20/2026,7:00 AM,4:00
+Debugging why Sign In With Google isnt working,12/29/2025,1:00 PM,12/29/2025,5:00 PM,4:00
+Environment Setup and initial debugging to get the app started,07/07/2025,11:00 AM,07/07/2025,3:00 PM,4:00
+Shop (SD-220),11/24/2025,5:51 PM,11/24/2025,9:42 PM,3:51
+Add Google APIs (SD-110),09/11/2025,4:40 PM,09/11/2025,8:27 PM,3:47
+Getting familiar with the codebase,07/10/2025,10:07 AM,07/10/2025,1:53 PM,3:46
+Shop debugging and fixing,01/19/2026,10:30 PM,01/20/2026,2:15 AM,3:45
+Registration (SD-24),09/23/2025,3:29 PM,09/23/2025,7:11 PM,3:42
+SD-104,07/21/2025,2:00 PM,07/21/2025,5:37 PM,3:37
+Chat (SD-189),10/28/2025,4:52 PM,10/28/2025,8:27 PM,3:35
+Paywall,01/20/2026,4:00 PM,01/20/2026,7:30 PM,3:30
+Shop/Shop History/Payment and cleaning up code/making build,01/18/2026,4:30 PM,01/18/2026,8:00 PM,3:30
+Add Google APIs (SD-110),09/12/2025,4:12 PM,09/12/2025,7:37 PM,3:25
+User Profile Screen (SD-106),08/01/2025,9:52 AM,08/01/2025,1:15 PM,3:23
+User Profile Screen (SD-106),08/06/2025,1:43 PM,08/06/2025,5:01 PM,3:18
+User Profile Screen (SD-106),08/04/2025,9:53 AM,08/04/2025,1:07 PM,3:14
+More Screen (SD-105),07/28/2025,10:17 AM,07/28/2025,1:29 PM,3:12
+User Profile Screen (SD-106),08/08/2025,9:11 AM,08/08/2025,12:19 PM,3:08
+User Profile Screen (SD-106),08/06/2025,10:04 AM,08/06/2025,1:10 PM,3:06
+Bunch of fixes: SD-230 SD-437 SD-304 SD-447 SD-410 SD-287,02/02/2026,5:00 PM,02/02/2026,8:00 PM,3:00
+"Paywall show description for features, Show Yellow Card for users (370, 418)",01/30/2026,10:00 PM,01/31/2026,1:00 AM,3:00
+Fixing up toasts to always look the same & Writing a list of all toasts for QA [SD-417],01/30/2026,4:00 PM,01/30/2026,7:00 PM,3:00
+Yellow Card for Users + Paywall discussions & minor implementations,01/23/2026,2:00 PM,01/23/2026,5:00 PM,3:00
+Setup profile X not functioning (SD-295),12/15/2025,2:35 PM,12/15/2025,5:26 PM,2:51
+Add Google APIs (SD-110) - finish the UX,09/17/2025,11:17 AM,09/17/2025,1:59 PM,2:42
+SD-104,07/10/2025,3:24 PM,07/10/2025,5:58 PM,2:34
+Reset Password (SD-31),10/13/2025,3:56 PM,10/13/2025,6:28 PM,2:32
+Fix Screen Freezing on Notifications (SD-332) and Add New Messages screen + Created builds,02/03/2026,12:00 AM,02/03/2026,2:30 AM,2:30
+Adding Google places and Google Books,09/09/2025,4:42 PM,09/09/2025,7:11 PM,2:29
+Finalizing new build,10/08/2025,8:57 PM,10/08/2025,11:23 PM,2:26
+Ask Ana (SD-107),09/01/2025,3:11 PM,09/01/2025,5:35 PM,2:24
+"Resolving comments on my PRs, cleaning code and reviewing Karlos PRs",12/04/2025,1:42 PM,12/04/2025,4:03 PM,2:21
+Registration (SD-24),09/25/2025,1:26 PM,09/25/2025,3:41 PM,2:15
+Reset Password (SD-31),10/14/2025,12:18 PM,10/14/2025,2:27 PM,2:09
+Make and publish first build,10/09/2025,12:42 AM,10/09/2025,2:51 AM,2:09
+Fix batch: 245 285 288 293 294,12/05/2025,1:02 PM,12/05/2025,3:03 PM,2:01
+Virtual Products SD-449 & SD-230,02/02/2026,2:00 PM,02/02/2026,4:00 PM,2:00
+"Investigated tasks but they ended up being BE (SD-440, SD-441)",02/02/2026,9:00 PM,02/02/2026,11:00 PM,2:00
+"Fix minor bugs that didnt have tickets, and also (SD-423)",01/31/2026,10:00 PM,02/01/2026,12:00 AM,2:00
+"Restrict Chat for InComplete Profiles & Refactor Social Logins and hide Apple Login on Android & Disable Motivation in More (SD-343,344)",01/13/2026,5:00 PM,01/13/2026,7:00 PM,2:00
+Checking out SAM-83,10/13/2025,1:25 PM,10/13/2025,3:23 PM,1:58
+Making a reusable generic Transition Screen (SD-247),12/03/2025,3:20 PM,12/03/2025,5:17 PM,1:57
+Chat (SD-189),10/31/2025,5:14 PM,10/31/2025,7:00 PM,1:46
+SD-104,07/11/2025,10:37 AM,07/11/2025,12:17 PM,1:40
+Helping Karlo setup the project. And updating the entire flutter codebase to use latest package versions,11/27/2025,4:38 PM,11/27/2025,6:09 PM,1:31
+"Help debug and resolve tickets (talking if this is a bug or not, planning tasks, etc)",02/03/2026,1:30 PM,02/03/2026,3:00 PM,1:30
+"Helping test, debug and create builds 2",02/01/2026,10:30 PM,02/02/2026,12:00 AM,1:30
+Fixing SD-252 and making build and testing it works,01/23/2026,12:30 PM,01/23/2026,2:00 PM,1:30
+Paywall,01/20/2026,8:30 PM,01/20/2026,10:00 PM,1:30
+"FIX: 169, 272",12/01/2025,3:40 PM,12/01/2025,5:04 PM,1:24
+Daily Standup,02/06/2026,11:00 AM,02/06/2026,12:15 PM,1:15
+Shop (SD-220),12/15/2025,5:26 PM,12/15/2025,6:41 PM,1:15
+Registration (SD-24),09/18/2025,11:39 AM,09/18/2025,12:53 PM,1:14
+Generating 2 builds (+ bugfixing),12/03/2025,6:22 PM,12/03/2025,7:28 PM,1:06
+Daily Standup,10/27/2025,11:00 AM,10/27/2025,12:06 PM,1:06
+Reportanje (SD-272),12/03/2025,5:17 PM,12/03/2025,6:22 PM,1:05
+Daily Standup,10/01/2025,11:00 AM,10/01/2025,12:05 PM,1:05
+Daily Standup,09/26/2025,11:00 AM,09/26/2025,12:05 PM,1:05
+Daily Standup (and a quick call with Filip),02/04/2026,11:00 AM,02/04/2026,12:00 PM,1:00
+"Translate arb files, and add script to remove no longer used translation keys + create build",02/02/2026,11:30 AM,02/02/2026,12:30 PM,1:00
+Daily Standup,01/30/2026,11:00 AM,01/30/2026,12:00 PM,1:00
+Daily Standup,01/21/2026,11:00 AM,01/21/2026,12:00 PM,1:00
+Daily Standup,01/16/2026,11:00 AM,01/16/2026,12:00 PM,1:00
+Daily Standup,01/14/2026,11:00 AM,01/14/2026,12:00 PM,1:00
+Daily Standup,01/12/2026,11:00 AM,01/12/2026,12:00 PM,1:00
+Finish Sign in With Google for iOS with BE help (SD-330),01/09/2026,10:00 AM,01/09/2026,11:00 AM,1:00
+Daily Standup,12/19/2025,11:00 AM,12/19/2025,12:00 PM,1:00
+Daily Standup,12/17/2025,11:00 AM,12/17/2025,12:00 PM,1:00
+Studying Find a Soulmate,12/03/2025,2:24 PM,12/03/2025,3:20 PM,0:56
+Onboarding with Karlo,12/01/2025,12:00 PM,12/01/2025,12:56 PM,0:56
+Daily Standup,12/15/2025,12:45 PM,12/15/2025,1:40 PM,0:55
+Daily Standup,12/05/2025,11:00 AM,12/05/2025,11:55 AM,0:55
+Daily Standup,12/01/2025,11:00 AM,12/01/2025,11:55 AM,0:55
+Daily Standup,08/20/2025,11:00 AM,08/20/2025,11:55 AM,0:55
+Debugging why Google Sign In doesnt work,10/17/2025,1:46 PM,10/17/2025,2:38 PM,0:52
+"Attempting to make a build on GooglePlayStore, but utlimately just doing a normal apk",10/15/2025,11:52 PM,10/16/2025,12:41 AM,0:49
+Reading Documentation,07/10/2025,2:35 PM,07/10/2025,3:24 PM,0:49
+Fixing small issues: 171 232 255,11/14/2025,3:23 PM,11/14/2025,4:11 PM,0:48
+Meeting with Zoran about Reporting,12/08/2025,11:23 AM,12/08/2025,12:09 PM,0:46
+Chat (SD-189),10/31/2025,10:14 AM,10/31/2025,11:00 AM,0:46
+Daily Standup,01/28/2026,11:00 AM,01/28/2026,11:45 AM,0:45
+Daily Standup,01/23/2026,11:00 AM,01/23/2026,11:45 AM,0:45
+Daily Standup (and a quick call with zoran),01/19/2026,11:00 AM,01/19/2026,11:45 AM,0:45
+Finish 2 small tasks in with (SD-295 SD-245),01/09/2026,11:45 AM,01/09/2026,12:30 PM,0:45
+Meeting with Zoran about Reporting and Books,01/09/2026,2:30 PM,01/09/2026,3:15 PM,0:45
+Daily Standup,01/09/2026,11:00 AM,01/09/2026,11:45 AM,0:45
+Filling in some questionaires for deploying the app,11/07/2025,3:42 PM,11/07/2025,4:27 PM,0:45
+Sync up,07/07/2025,3:30 PM,07/07/2025,4:15 PM,0:45
+Daily Standup,09/11/2025,10:30 AM,09/11/2025,11:14 AM,0:44
+"Estimating Find a Soulmate, and asking more questions",12/04/2025,4:03 PM,12/04/2025,4:46 PM,0:43
+Daily Standup,12/12/2025,11:00 AM,12/12/2025,11:41 AM,0:41
+Daily Standup,10/29/2025,11:10 AM,10/29/2025,11:50 AM,0:40
+Fixing small build issues: SD-119 SD-120 SD-123 SD-134,10/10/2025,11:29 AM,10/10/2025,12:07 PM,0:38
+Daily Standup,10/08/2025,11:30 AM,10/08/2025,12:08 PM,0:38
+Chat (SD-189),11/03/2025,10:24 AM,11/03/2025,11:00 AM,0:36
+Troubleshooting with backend (SD-140) + PR Review for Jasna,10/15/2025,10:24 AM,10/15/2025,11:00 AM,0:36
+Daily Standup,10/13/2025,11:00 AM,10/13/2025,11:36 AM,0:36
+Daily Standup,09/12/2025,11:00 AM,09/12/2025,11:36 AM,0:36
+Daily Standup,12/03/2025,1:30 PM,12/03/2025,2:05 PM,0:35
+Making builds and testing out Play Store,11/05/2025,1:28 PM,11/05/2025,2:00 PM,0:32
+Issues with creating build,11/04/2025,10:22 AM,11/04/2025,10:54 AM,0:32
+Finalizing signin with google (SD-140),10/15/2025,12:59 PM,10/15/2025,1:31 PM,0:32
+Discussion about how to setup chat,10/13/2025,3:24 PM,10/13/2025,3:56 PM,0:32
+Catching up on task discussions and having a call with Karlo,02/05/2026,12:00 PM,02/05/2026,12:30 PM,0:30
+Meeting with Zoran about Deeplinking,02/03/2026,11:00 AM,02/03/2026,11:30 AM,0:30
+Daily Standup,02/02/2026,11:00 AM,02/02/2026,11:30 AM,0:30
+Daily Standup,01/29/2026,11:00 AM,01/29/2026,11:30 AM,0:30
+Update Publications config on Google Play,01/28/2026,12:00 PM,01/28/2026,12:30 PM,0:30
+Debugging RevenueCat logic on iOS device,01/25/2026,3:00 AM,01/25/2026,3:30 AM,0:30
+Review and merge PRs,01/22/2026,8:30 PM,01/22/2026,9:00 PM,0:30
+Meeting with Karlo about Paywall,01/22/2026,2:45 AM,01/22/2026,3:15 AM,0:30
+Fix Video Images,01/21/2026,10:30 AM,01/21/2026,11:00 AM,0:30
+Resolve PR comments,01/12/2026,12:00 PM,01/12/2026,12:30 PM,0:30
+Daily Standup,01/07/2026,1:00 PM,01/07/2026,1:30 PM,0:30
+Daily Standup,12/29/2025,11:00 AM,12/29/2025,11:30 AM,0:30
+Daily Standup,12/22/2025,11:00 AM,12/22/2025,11:30 AM,0:30
+Making builds and testing out Play Store,12/18/2025,11:30 AM,12/18/2025,12:00 PM,0:30
+Daily Standup,11/21/2025,11:00 AM,11/21/2025,11:30 AM,0:30
+Daily Standup,10/15/2025,11:00 AM,10/15/2025,11:30 AM,0:30
+Daily Standup,09/24/2025,11:00 AM,09/24/2025,11:30 AM,0:30
+Daily Standup,09/15/2025,11:00 AM,09/15/2025,11:30 AM,0:30
+Daily Standup,09/10/2025,11:00 AM,09/10/2025,11:30 AM,0:30
+Daily Standup,09/05/2025,11:30 AM,09/05/2025,12:00 PM,0:30
+Daily Standup,08/29/2025,11:00 AM,08/29/2025,11:30 AM,0:30
+Onboarding,06/26/2025,11:00 AM,06/26/2025,11:30 AM,0:30
+Daily Standup,10/10/2025,11:00 AM,10/10/2025,11:29 AM,0:29
+Making builds and testing out Play Store,12/05/2025,3:03 PM,12/05/2025,3:31 PM,0:28
+Daily Standup,10/31/2025,11:00 AM,10/31/2025,11:28 AM,0:28
+Daily Standup,09/19/2025,11:00 AM,09/19/2025,11:28 AM,0:28
+"Read through client feedback, respond to tags, and prepare to work on tasks",09/10/2025,3:00 PM,09/10/2025,3:28 PM,0:28
+Daily Standup,11/19/2025,11:10 AM,11/19/2025,11:37 AM,0:27
+Daily Standup,11/12/2025,11:00 AM,11/12/2025,11:26 AM,0:26
+Meeting with Zoran about Chat (SD-189),10/27/2025,2:20 PM,10/27/2025,2:46 PM,0:26
+Meeting with Josipa,11/11/2025,12:09 PM,11/11/2025,12:34 PM,0:25
+Daily Standup,09/22/2025,11:00 AM,09/22/2025,11:25 AM,0:25
+Reviewing PRs,12/16/2025,11:23 AM,12/16/2025,11:46 AM,0:23
+Daily Standup,12/08/2025,11:00 AM,12/08/2025,11:23 AM,0:23
+Daily Standup,11/07/2025,11:00 AM,11/07/2025,11:23 AM,0:23
+Resolving comments on my PR,12/05/2025,11:55 AM,12/05/2025,12:17 PM,0:22
+Meeting with Zoran about Chat (SD-189),10/29/2025,11:50 AM,10/29/2025,12:12 PM,0:22
+Reviewing PRs,12/11/2025,12:36 PM,12/11/2025,12:57 PM,0:21
+Daily Standup,11/14/2025,11:00 AM,11/14/2025,11:21 AM,0:21
+Daily Standup,11/10/2025,11:00 AM,11/10/2025,11:21 AM,0:21
+Daily Standup,11/05/2025,11:00 AM,11/05/2025,11:21 AM,0:21
+Make APK,10/09/2025,11:36 AM,10/09/2025,11:57 AM,0:21
+Reviewing PRs and merging code,12/08/2025,12:09 PM,12/08/2025,12:29 PM,0:20
+Daily Standup,09/01/2025,11:00 AM,09/01/2025,11:20 AM,0:20
+Daily Standup,08/25/2025,11:00 AM,08/25/2025,11:20 AM,0:20
+Daily Standup,08/22/2025,11:10 AM,08/22/2025,11:30 AM,0:20
+"Attempting to make a build on GooglePlayStore, and then updating Privacy Policy",10/16/2025,1:36 PM,10/16/2025,1:53 PM,0:17
+Review PR,10/13/2025,1:08 PM,10/13/2025,1:25 PM,0:17
+Daily Standup,09/17/2025,11:00 AM,09/17/2025,11:17 AM,0:17
+Daily Standup,11/26/2025,11:00 AM,11/26/2025,11:16 AM,0:16
+Makin time estimates,11/11/2025,12:34 PM,11/11/2025,12:50 PM,0:16
+Daily Standup,11/03/2025,11:00 AM,11/03/2025,11:16 AM,0:16
+Preparing new build without paywall,01/28/2026,11:45 AM,01/28/2026,12:00 PM,0:15
+Review and merge PRs,01/23/2026,11:45 AM,01/23/2026,12:00 PM,0:15
+Daily Standup,11/17/2025,11:00 AM,11/17/2025,11:15 AM,0:15
+Meeting with Ivan,11/07/2025,3:00 PM,11/07/2025,3:13 PM,0:13
+Meeting with Karlo about Video features,12/12/2025,1:53 PM,12/12/2025,2:04 PM,0:11
+Meeting with Karlo about Video features,12/15/2025,11:00 AM,12/15/2025,11:10 AM,0:10
+Meeting with Zoran about Reporting,12/15/2025,2:25 PM,12/15/2025,2:35 PM,0:10

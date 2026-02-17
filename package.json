@@ -1,0 +1,27 @@
+{
+  "name": "clockify-reconciliator",
+  "version": "1.0.0",
+  "description": "Reconcile Clockify time entries with GitHub commits and Jira tickets",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "node --test"
+  },
+  "keywords": [
+    "clockify",
+    "github",
+    "jira",
+    "time-tracking",
+    "reconciliation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "date-fns": "^3.0.0",
+    "@anthropic-ai/sdk": "^0.20.0",
+    "@google/generative-ai": "^0.3.0",
+    "csv-parse": "^5.0.0",
+    "csv-stringify": "^6.0.0",
+    "@octokit/rest": "^20.0.0"
+  }
+}

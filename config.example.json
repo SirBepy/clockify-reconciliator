@@ -1,0 +1,24 @@
+{
+  "github": {
+    "personal_access_token": "ghp_YOUR_TOKEN_HERE",
+    "repo_owner": "your-company",
+    "repo_name": "your-project",
+    "main_branch": "develop",
+    "developer_emails": ["you@company.com", "you@personal.com"],
+    "date_from": "2024-01-01",
+    "date_to": "2024-06-01"
+  },
+  "jira": {
+    "base_url": "https://your-company.atlassian.net",
+    "api_token": "YOUR_JIRA_TOKEN",
+    "user_email": "you@company.com",
+    "project_keys": ["SD", "PROJ"],
+    "date_from": "2024-01-01",
+    "date_to": "2024-06-01"
+  },
+  "clockify": {
+    "input_csv": "./input/clockify-export.csv",
+    "output_mirrored": "./output/enriched-mirrored.csv",
+    "output_standardized": "./output/enriched-standardized.csv"
+  }
+}
