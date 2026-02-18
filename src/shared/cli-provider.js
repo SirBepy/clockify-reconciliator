@@ -106,6 +106,22 @@ export async function executeProvider(providerName, prompt) {
     `cli-providers/${providerName}.js`,
   );
 
+  // Inject API keys from config.json into the child process env (env var takes precedence if already set)
+  const childEnv = { ...process.env };
+  try {
+    const configPath = path.join(projectRoot, "config.json");
+    const configContent = fs.readFileSync(configPath, "utf-8");
+    const config = JSON.parse(configContent);
+    if (config.ai?.anthropic_api_key && !childEnv.ANTHROPIC_API_KEY) {
+      childEnv.ANTHROPIC_API_KEY = config.ai.anthropic_api_key;
+    }
+    if (config.ai?.gemini_api_key && !childEnv.GOOGLE_API_KEY) {
+      childEnv.GOOGLE_API_KEY = config.ai.gemini_api_key;
+    }
+  } catch {
+    // Config read failure is non-fatal; provider will surface missing key error
+  }
+
   try {
     const result = spawnSync(
       "node",
@@ -113,6 +129,7 @@ export async function executeProvider(providerName, prompt) {
       {
         encoding: "utf-8",
         stdio: ["inherit", "pipe", "pipe"],
+        env: childEnv,
       },
     );
 
@@ -121,8 +138,12 @@ export async function executeProvider(providerName, prompt) {
     }
 
     if (result.status !== 0) {
+      let detail = result.stderr || result.stdout || "";
+      if (!detail && fs.existsSync(responseFile)) {
+        detail = fs.readFileSync(responseFile, "utf-8");
+      }
       throw new Error(
-        `Provider execution failed with status ${result.status}: ${result.stderr || result.stdout}`,
+        `Provider execution failed with status ${result.status}: ${detail}`,
       );
     }
   } catch (error) {

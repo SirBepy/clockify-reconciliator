@@ -1,5 +1,14 @@
 {
   "_comment": "TEMPLATE: Copy this file to config.json and fill in your real credentials. Never commit config.json.",
+  "ai": {
+    "_comment": "API keys for AI providers used during summarization",
+    "anthropic_api_key": "sk-ant-YOUR_KEY_HERE",
+    "gemini_api_key": "YOUR_GEMINI_KEY_HERE",
+    "__notes": {
+      "anthropic_api_key": "Required for claude-haiku, claude-sonnet, claude-opus providers; get from console.anthropic.com",
+      "gemini_api_key": "Required for gemini-flash, gemini-pro providers; get from aistudio.google.com"
+    }
+  },
   "github": {
     "_comment": "GitHub configuration for fetching PR history and commit data",
     "personal_access_token": "ghp_YOUR_TOKEN_HERE",
