@@ -150,6 +150,56 @@ function parseHMM(hmm) {
   return h + m / 60;
 }
 
+/**
+ * Compute per-commit weighted hour allocations for a group.
+ * Primary weight: Jira story points (any ticket linked to the commit).
+ * Tiebreaker: lines_added + lines_removed.
+ * Returns an array of { sha, hours } in the same order as githubMatches.
+ */
+function computeCommitWeights(githubMatches, jiraMatches, totalHours) {
+  if (!githubMatches || githubMatches.length === 0) return [];
+
+  const jiraByTicket = new Map(
+    (jiraMatches || []).map((j) => [j.ticket_id, j]),
+  );
+
+  const rawWeights = githubMatches.map((g) => {
+    // Primary: highest story points among Jira tickets linked to this commit
+    let sp = 0;
+    if (Array.isArray(g.ticket_ids)) {
+      for (const tid of g.ticket_ids) {
+        const j = jiraByTicket.get(tid);
+        if (j) {
+          const pts =
+            j.story_points || j.storyPoint || j.story_points_count || 0;
+          if (pts > sp) sp = pts;
+        }
+      }
+    }
+    // Tiebreaker: lines changed
+    const lines = (g.lines_added || 0) + (g.lines_removed || 0);
+    return { sha: g.sha, sp, lines };
+  });
+
+  // Scale so story points dominate: sp * (maxLines + 1) + lines
+  const maxLines = Math.max(1, ...rawWeights.map((w) => w.lines));
+  const scores = rawWeights.map((w) => ({
+    sha: w.sha,
+    score: w.sp > 0 ? w.sp * (maxLines + 1) + w.lines : w.lines,
+  }));
+
+  // Fall back to equal weight when all scores are zero
+  const totalScore = scores.reduce((s, x) => s + x.score, 0) || scores.length;
+  const equalShare = totalScore === scores.length; // all-zero case
+
+  return scores.map((s, i) => ({
+    sha: s.sha,
+    hours: +(
+      totalHours * (equalShare ? 1 / scores.length : s.score / totalScore)
+    ).toFixed(6),
+  }));
+}
+
 // ============================================================================
 // Section 3 — CLI Argument Parsing
 // ============================================================================
@@ -429,7 +479,7 @@ for (let i = 0; i < clockifyRows.length; i++) {
     if (clockifyDate) {
       for (const item of githubMatchesExact) {
         try {
-          const itemDate = item.type === "pr" ? item.merged_at : item.date;
+          const itemDate = item.committed_at;
           const parsed = parseISOToLocal(itemDate);
           if (isWithinDayWindow(clockifyDate, parsed, 1)) {
             githubMatchesNear.push(item);
@@ -443,7 +493,7 @@ for (let i = 0; i < clockifyRows.length; i++) {
     // date-only match as fallback (lower priority)
     for (const item of githubData) {
       try {
-        const itemDate = item.type === "pr" ? item.merged_at : item.date;
+        const itemDate = item.committed_at;
         const parsed = parseISOToLocal(itemDate);
         if (isWithinDayWindow(clockifyDate, parsed, 1))
           githubMatchesNear.push(item);
@@ -498,20 +548,17 @@ if (unmatched.length > 0) {
 
   const githubList = githubData
     .map((g) => {
-      if (g.type === "pr") {
-        return `PR#${g.pr_number}: ${g.merged_at || "?"} | ${g.pr_title || ""} | ${g.ai_description || ""}`;
-      } else if (g.type === "commit_group") {
-        return `COMMIT_GROUP@${g.date}: ${g.ai_description || ""}`;
-      }
-      return "";
+      const prPart = g.pr_context
+        ? ` | PR#${g.pr_context.pr_number}: ${g.pr_context.pr_title}`
+        : "";
+      return `COMMIT@${(g.committed_at || "").slice(0, 10)} sha=${(g.sha || "").slice(0, 8)}: ${g.message || ""}${prPart} | ${g.ai_description || ""}`;
     })
-    .filter((x) => x)
     .join("\n");
   const jiraList = jiraData
     .map((j) => `${j.ticket_id} | ${j.title || ""}`)
     .join("\n");
 
-  const semanticPrompt = `For these unmatched Clockify entries, suggest possible GitHub PR or Jira ticket matches.\n\nEntries:\n${entriesList}\n\nGitHub items:\n${githubList}\n\nJira Tickets:\n${jiraList}\n\nReturn a JSON array where each element is { rowIndex: <number>, github_match: <"PR#<number>"|"COMMIT_GROUP@<date>"|null>, jira_match: <ticket_id|null>, confidence: "high"|"medium"|"low" }`;
+  const semanticPrompt = `For these unmatched Clockify entries, suggest possible GitHub commit or Jira ticket matches.\n\nEntries:\n${entriesList}\n\nGitHub items:\n${githubList}\n\nJira Tickets:\n${jiraList}\n\nReturn a JSON array where each element is { rowIndex: <number>, github_match: <"COMMIT@sha=<8-char-sha>"|null>, jira_match: <ticket_id|null>, confidence: "high"|"medium"|"low" }`;
 
   try {
     const resp = await executeProvider(selectedProvider, semanticPrompt);
@@ -527,31 +574,15 @@ if (unmatched.length > 0) {
           matchResults[idx].confidence =
             res.confidence || matchResults[idx].confidence;
           if (res.github_match) {
-            // Handle multiple formats: numeric, "pr_<number>", or commit group like "COMMIT_GROUP@<date>"
-            let prNum = null;
-            if (typeof res.github_match === "number") {
-              prNum = res.github_match;
-            } else if (typeof res.github_match === "string") {
-              if (res.github_match.startsWith("PR#")) {
-                prNum = parseInt(res.github_match.substring(3), 10);
-              } else if (res.github_match.startsWith("pr_")) {
-                prNum = parseInt(res.github_match.substring(3), 10);
-              } else if (res.github_match.startsWith("COMMIT_GROUP@")) {
-                const commitDate = res.github_match.substring(
-                  "COMMIT_GROUP@".length,
-                );
-                const cg = githubData.find(
-                  (x) => x.type === "commit_group" && x.date === commitDate,
-                );
-                if (cg) matchResults[idx].githubMatches.push(cg);
-                // prNum stays null — fall through to jira_match check
-              } else {
-                prNum = parseInt(res.github_match, 10);
-              }
-            }
-            if (prNum && !isNaN(prNum)) {
-              const g = githubData.find((x) => x.pr_number == prNum);
-              if (g) matchResults[idx].githubMatches.push(g);
+            if (
+              typeof res.github_match === "string" &&
+              res.github_match.startsWith("COMMIT@sha=")
+            ) {
+              const shaPrefix = res.github_match.substring("COMMIT@sha=".length);
+              const commit = githubData.find((x) =>
+                x.sha?.startsWith(shaPrefix),
+              );
+              if (commit) matchResults[idx].githubMatches.push(commit);
             }
           }
           if (res.jira_match) {
@@ -621,7 +652,7 @@ for (const [key, entries] of groups.entries()) {
     new Set(
       entries.flatMap((e) =>
         e.groupGithubMatches
-          ? e.groupGithubMatches.map((g) => g.pr_number)
+          ? e.groupGithubMatches.map((g) => g.sha)
           : [],
       ),
     ),
@@ -650,25 +681,27 @@ for (const [key, entries] of groups.entries()) {
   // Include Jira and GitHub context
   if (jiraTickets.length > 0)
     promptParts.push(`Jira tickets and metadata: ${jiraTickets.join(", ")}`);
-  if (gh.length > 0) promptParts.push(`GitHub PRs: ${gh.join(", ")}`);
+  if (gh.length > 0) promptParts.push(`GitHub commits: ${gh.map((s) => (s || "").slice(0, 8)).join(", ")}`);
 
-  // Provide per-PR/jira detailed context
+  // Provide per-commit/jira detailed context
   promptParts.push("Detailed GitHub/Jira context:");
-  // list GitHub PR details
-  for (const prId of gh) {
+  // list GitHub commit details
+  for (const sha of gh) {
     const prObj = entries
       .flatMap((e) => e.groupGithubMatches || [])
-      .find((p) => p.pr_number == prId);
+      .find((p) => p.sha == sha);
     if (prObj) {
       const modules = Array.isArray(prObj.modules_touched)
         ? prObj.modules_touched.join(", ")
         : "";
-      const commits = Array.isArray(prObj.commit_messages)
-        ? prObj.commit_messages.join(" || ")
-        : "";
-      promptParts.push(
-        `- PR ${prId}: pr_title="${prObj.pr_title || ""}", ai_description="${prObj.ai_description || ""}", modules="${modules}", files_changed=${prObj.files_changed || 0}, lines_added=${prObj.lines_added || 0}, lines_removed=${prObj.lines_removed || 0}, commit_messages="${commits}", complexity_signal="${prObj.complexity_signal || ""}"`,
-      );
+      const filesCount = Array.isArray(prObj.files_changed)
+        ? prObj.files_changed.length
+        : prObj.files_changed || 0;
+      let line = `- Commit ${(sha || "").slice(0, 8)}: message="${prObj.message || ""}", ai_description="${prObj.ai_description || ""}", modules="${modules}", files_changed=${filesCount}, lines_added=${prObj.lines_added || 0}, lines_removed=${prObj.lines_removed || 0}`;
+      if (prObj.pr_context) {
+        line += `, PR#${prObj.pr_context.pr_number}: "${prObj.pr_context.pr_title}" — ${prObj.pr_context.pr_ai_description || ""}`;
+      }
+      promptParts.push(line);
     }
   }
 
@@ -689,6 +722,28 @@ for (const [key, entries] of groups.entries()) {
     }
   }
 
+  // Compute deterministic weighted hour targets for multi-commit groups
+  const allGithubMatches = entries.flatMap((e) => e.groupGithubMatches || e.githubMatches || []);
+  const allJiraMatches = entries.flatMap((e) => e.groupJiraMatches || e.jiraMatches || []);
+  const uniqueGithubMatches = Array.from(
+    new Map(allGithubMatches.filter((g) => g.sha).map((g) => [g.sha, g])).values(),
+  );
+
+  if (uniqueGithubMatches.length > 1) {
+    const commitWeights = computeCommitWeights(uniqueGithubMatches, allJiraMatches, totalHours);
+    if (commitWeights.length > 0) {
+      promptParts.push(
+        "Pre-computed weighted hour targets per commit (story points primary, lines changed tiebreaker). Allocate subtasks to match these targets as closely as possible:",
+      );
+      for (const cw of commitWeights) {
+        promptParts.push(`  - Commit ${(cw.sha || "").slice(0, 8)}: ${cw.hours.toFixed(2)}h`);
+      }
+    }
+  }
+
+  promptParts.push(
+    "When distributing hours across subtasks, weight by Jira story points first, then use lines_added + lines_removed as a tiebreaker.",
+  );
   promptParts.push(
     "Return a JSON array of subtask objects: { description, hours, ticket_id (optional), confidence }.",
   );
@@ -911,18 +966,24 @@ for (const batch of batches) {
   );
   promptLines.push("");
   for (const wi of batch) {
-    // Build GitHub context with type distinction
+    // Build GitHub context with commit-centric format
     const ghEntries = wi.githubMatches
       .map((g) => {
-        if (g.type === "pr") {
-          return `PR#${g.pr_number}: title="${(g.pr_title || "").replace(/\n/g, " ")}", ai_description="${(g.ai_description || "").replace(/\n/g, " ")}", modules="${Array.isArray(g.modules_touched) ? g.modules_touched.join(", ") : ""}", files_changed=${g.files_changed || 0}, complexity="${g.complexity_signal || ""}"`;
-        } else if (g.type === "commit_group") {
-          return `COMMIT_GROUP@${g.date}: ai_description="${(g.ai_description || "").replace(/\n/g, " ")}", modules="${Array.isArray(g.modules_touched) ? g.modules_touched.join(", ") : ""}"`;
+        const sha8 = (g.sha || "").slice(0, 8);
+        const date10 = (g.committed_at || "").slice(0, 10);
+        const modules = Array.isArray(g.modules_touched)
+          ? g.modules_touched.join(", ")
+          : "";
+        const filesCount = Array.isArray(g.files_changed)
+          ? g.files_changed.length
+          : g.files_changed || 0;
+        let entry = `Commit ${sha8}: ${(g.message || "").replace(/\n/g, " ")}\nDate: ${date10} | Files: ${filesCount} | Modules: ${modules} | Lines: +${g.lines_added || 0}/-${g.lines_removed || 0}`;
+        if (g.pr_context) {
+          entry += `\nPR context: Part of PR #${g.pr_context.pr_number} "${(g.pr_context.pr_title || "").replace(/\n/g, " ")}" — ${(g.pr_context.pr_ai_description || "").replace(/\n/g, " ")}`;
         }
-        return "";
+        return entry;
       })
-      .filter((x) => x)
-      .join(" || ");
+      .join("\n---\n");
 
     // Build Jira context with additional fields
     const jiraEntries = wi.jiraMatches
@@ -1172,20 +1233,16 @@ function buildAINotesForSplitRow(matchResult, subIndex, totalSubs, enrichment) {
     context.push(`matched via exact ticket ${primaryTicketId}`);
   }
 
-  // Add GitHub PRs if matched (with type distinction)
+  // Add GitHub commits if matched
   if (matchResult.githubMatches && matchResult.githubMatches.length > 0) {
-    const prRefs = matchResult.githubMatches
+    const commitRefs = matchResult.githubMatches
       .map((g) => {
-        if (g.type === "pr") {
-          return `PR#${g.pr_number}`;
-        } else if (g.type === "commit_group") {
-          return `COMMIT_GROUP@${g.date}`;
-        }
-        return "";
+        let label = `Commit ${g.sha?.slice(0, 8)}`;
+        if (g.pr_context) label += ` PR#${g.pr_context.pr_number}`;
+        return label;
       })
-      .filter((x) => x)
       .join(", ");
-    if (prRefs) context.push(`github: ${prRefs}`);
+    if (commitRefs) context.push(`github: ${commitRefs}`);
   }
 
   // Add Jira tickets if matched
@@ -1219,20 +1276,16 @@ function buildAINotesForNonSplitRow(matchResult, enrichment) {
     context.push(`matched via exact ticket ${primaryTicketId}`);
   }
 
-  // Add GitHub PRs if matched (with type distinction)
+  // Add GitHub commits if matched
   if (matchResult.githubMatches && matchResult.githubMatches.length > 0) {
-    const prRefs = matchResult.githubMatches
+    const commitRefs = matchResult.githubMatches
       .map((g) => {
-        if (g.type === "pr") {
-          return `PR#${g.pr_number}`;
-        } else if (g.type === "commit_group") {
-          return `COMMIT_GROUP@${g.date}`;
-        }
-        return "";
+        let label = `Commit ${g.sha?.slice(0, 8)}`;
+        if (g.pr_context) label += ` PR#${g.pr_context.pr_number}`;
+        return label;
       })
-      .filter((x) => x)
       .join(", ");
-    if (prRefs) context.push(`github: ${prRefs}`);
+    if (commitRefs) context.push(`github: ${commitRefs}`);
   }
 
   // Add Jira tickets if matched
