@@ -34,11 +34,11 @@ export async function initCache(cachePath, options = {}) {
 
     return new Promise((resolve) => {
       rl.question(
-        "Found existing cache. Resume or start fresh? (r/s): ",
+        "Found existing cache. Use (C)ache or (R)e-fetch from GitHub? (c/r): ",
         (answer) => {
           rl.close();
 
-          if (answer.toLowerCase() === "r") {
+          if (answer.toLowerCase() === "c") {
             console.log("Resuming from cache...");
             resolve(readCache(cachePath));
           } else {

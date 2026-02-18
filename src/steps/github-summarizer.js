@@ -143,7 +143,9 @@ let useRawCache = false;
 
 if (!parsedArgs.values["force-refresh"] && fs.existsSync(RAW_PR_CACHE_PATH)) {
   const rawCacheFile = JSON.parse(fs.readFileSync(RAW_PR_CACHE_PATH, "utf-8"));
-  const rawCacheData = Array.isArray(rawCacheFile) ? rawCacheFile : (rawCacheFile.prs ?? []);
+  const rawCacheData = Array.isArray(rawCacheFile)
+    ? rawCacheFile
+    : (rawCacheFile.prs ?? []);
   const N = rawCacheData.length;
 
   const rl = readline.createInterface({
@@ -153,7 +155,7 @@ if (!parsedArgs.values["force-refresh"] && fs.existsSync(RAW_PR_CACHE_PATH)) {
 
   const answer = await new Promise((resolve) => {
     rl.question(
-      `Found cached PR data (${N} PRs). Use cache or re-fetch from GitHub? (c/r): `,
+      `Found cached PR data (${N} PRs). Use (C)ache or (R)e-fetch from GitHub? (c/r): `,
       (answer) => {
         rl.close();
         resolve(answer);
@@ -188,7 +190,9 @@ const selectedProvider = await promptProviderSelection(providers);
 // ============================================================================
 
 const cachedItems = await initCache(CACHE_PATH);
-const processedShas = new Set(cachedItems.filter((i) => i.sha).map((i) => i.sha));
+const processedShas = new Set(
+  cachedItems.filter((i) => i.sha).map((i) => i.sha),
+);
 
 if (processedShas.size > 0) {
   console.log(
@@ -340,8 +344,14 @@ async function fetchPRDetails(octokit, config, prNumber, developerEmails = []) {
       });
       commit_details[commit.sha] = {
         files: data.files ?? [],
-        lines_added: (data.files ?? []).reduce((sum, f) => sum + f.additions, 0),
-        lines_removed: (data.files ?? []).reduce((sum, f) => sum + f.deletions, 0),
+        lines_added: (data.files ?? []).reduce(
+          (sum, f) => sum + f.additions,
+          0,
+        ),
+        lines_removed: (data.files ?? []).reduce(
+          (sum, f) => sum + f.deletions,
+          0,
+        ),
       };
     }
   }
@@ -391,7 +401,12 @@ Respond ONLY with valid JSON, no markdown fences.`;
   return parsed.pr_ai_description;
 }
 
-async function summarizeCommit(commitData, prContext, selectedProvider, projectKeys = []) {
+async function summarizeCommit(
+  commitData,
+  prContext,
+  selectedProvider,
+  projectKeys = [],
+) {
   const prompt = `Summarize the following GitHub commit for time-tracking enrichment. Focus on WHAT WAS BUILT based on the code changes.
 
 Commit: ${commitData.sha}
@@ -426,7 +441,11 @@ Respond ONLY with valid JSON, no markdown fences.`;
   return parsed.ai_description;
 }
 
-async function summarizeOrphanCommit(commitData, selectedProvider, projectKeys = []) {
+async function summarizeOrphanCommit(
+  commitData,
+  selectedProvider,
+  projectKeys = [],
+) {
   const prompt = `Summarize the following direct commit for time-tracking enrichment. Focus on WHAT WAS BUILT based on the code changes.
 
 Commit: ${commitData.sha}
@@ -473,8 +492,12 @@ Respond ONLY with valid JSON, no markdown fences.`;
       const rawCacheFile = JSON.parse(
         fs.readFileSync(RAW_PR_CACHE_PATH, "utf-8"),
       );
-      const rawCacheData = Array.isArray(rawCacheFile) ? rawCacheFile : (rawCacheFile.prs ?? []);
-      cachedDeveloperEmails = Array.isArray(rawCacheFile.developer_emails) ? rawCacheFile.developer_emails : [];
+      const rawCacheData = Array.isArray(rawCacheFile)
+        ? rawCacheFile
+        : (rawCacheFile.prs ?? []);
+      cachedDeveloperEmails = Array.isArray(rawCacheFile.developer_emails)
+        ? rawCacheFile.developer_emails
+        : [];
       allPRs = rawCacheData.map((entry) => ({
         number: entry.pr_number,
         title: entry.pr_title,
@@ -565,7 +588,12 @@ Respond ONLY with valid JSON, no markdown fences.`;
     } else {
       for (let i = 0; i < allPRs.length; i++) {
         const pr = allPRs[i];
-        const details = await fetchPRDetails(octokit, config, pr.number, developerEmails);
+        const details = await fetchPRDetails(
+          octokit,
+          config,
+          pr.number,
+          developerEmails,
+        );
         allPRDetails[pr.number] = details;
         // Ownership filter: include PR only if it has at least one commit authored by developerEmails
         let includePR = true;
@@ -600,7 +628,11 @@ Respond ONLY with valid JSON, no markdown fences.`;
       }));
       fs.writeFileSync(
         RAW_PR_CACHE_PATH,
-        JSON.stringify({ developer_emails: developerEmails, prs: rawCacheEntries }, null, 2),
+        JSON.stringify(
+          { developer_emails: developerEmails, prs: rawCacheEntries },
+          null,
+          2,
+        ),
       );
     }
 
@@ -689,8 +721,14 @@ Respond ONLY with valid JSON, no markdown fences.`;
           });
           commitDetail = {
             files: data.files ?? [],
-            lines_added: (data.files ?? []).reduce((sum, f) => sum + f.additions, 0),
-            lines_removed: (data.files ?? []).reduce((sum, f) => sum + f.deletions, 0),
+            lines_added: (data.files ?? []).reduce(
+              (sum, f) => sum + f.additions,
+              0,
+            ),
+            lines_removed: (data.files ?? []).reduce(
+              (sum, f) => sum + f.deletions,
+              0,
+            ),
           };
         }
 
