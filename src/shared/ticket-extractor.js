@@ -4,7 +4,7 @@
  * @param {string} text - Text to extract ticket IDs from
  * @returns {string[]} Array of unique ticket IDs in uppercase
  */
-export function extractTicketIds(text) {
+export function extractTicketIds(text, allowedPrefixes = null) {
   if (!text || typeof text !== "string") {
     return [];
   }
@@ -16,5 +16,12 @@ export function extractTicketIds(text) {
   // Extract the matched text, normalize to uppercase and deduplicate using Set
   const uniqueIds = new Set(matches.map((match) => match[1].toUpperCase()));
 
-  return Array.from(uniqueIds);
+  const ids = Array.from(uniqueIds);
+
+  if (!allowedPrefixes || allowedPrefixes.length === 0) {
+    return ids;
+  }
+
+  const prefixSet = new Set(allowedPrefixes.map((p) => p.toUpperCase()));
+  return ids.filter((id) => prefixSet.has(id.split("-")[0]));
 }

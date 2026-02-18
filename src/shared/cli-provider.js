@@ -122,7 +122,21 @@ export async function executeProvider(providerName, prompt) {
     // Config read failure is non-fatal; provider will surface missing key error
   }
 
-  try {
+  const MAX_RETRIES = 3;
+  const RETRY_DELAYS_MS = [5000, 15000, 30000];
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  let lastError;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    if (attempt > 0) {
+      const delay = RETRY_DELAYS_MS[attempt - 1] ?? 30000;
+      process.stdout.write(
+        `\nAPI overloaded, retrying in ${delay / 1000}s (attempt ${attempt}/${MAX_RETRIES})...\n`,
+      );
+      await sleep(delay);
+      if (fs.existsSync(responseFile)) fs.unlinkSync(responseFile);
+    }
+
     const result = spawnSync(
       "node",
       [providerScript, promptFile, responseFile],
@@ -134,20 +148,23 @@ export async function executeProvider(providerName, prompt) {
     );
 
     if (result.error) {
-      throw result.error;
+      throw new Error(`Provider execution failed: ${result.error.message}`);
     }
 
-    if (result.status !== 0) {
-      let detail = result.stderr || result.stdout || "";
-      if (!detail && fs.existsSync(responseFile)) {
-        detail = fs.readFileSync(responseFile, "utf-8");
-      }
-      throw new Error(
-        `Provider execution failed with status ${result.status}: ${detail}`,
-      );
+    if (result.status === 0) break;
+
+    let detail = result.stderr || result.stdout || "";
+    if (!detail && fs.existsSync(responseFile)) {
+      detail = fs.readFileSync(responseFile, "utf-8");
     }
-  } catch (error) {
-    throw new Error(`Provider execution failed: ${error.message}`);
+
+    lastError = `Provider execution failed with status ${result.status}: ${detail}`;
+
+    const isOverloaded =
+      detail.includes("overloaded") || detail.includes("529");
+    if (!isOverloaded || attempt === MAX_RETRIES) {
+      throw new Error(`Provider execution failed: ${lastError}`);
+    }
   }
 
   // Read response file

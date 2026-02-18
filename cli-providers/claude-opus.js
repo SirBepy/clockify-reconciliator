@@ -31,7 +31,7 @@ async function main() {
     // Call Claude Opus
     const message = await client.messages.create({
       model: "claude-opus-4-6",
-      max_tokens: 4096,
+      max_tokens: 16384,
       messages: [
         {
           role: "user",

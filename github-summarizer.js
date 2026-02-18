@@ -142,7 +142,8 @@ if (parsedArgs.values["force-refresh"]) {
 let useRawCache = false;
 
 if (!parsedArgs.values["force-refresh"] && fs.existsSync(RAW_PR_CACHE_PATH)) {
-  const rawCacheData = JSON.parse(fs.readFileSync(RAW_PR_CACHE_PATH, "utf-8"));
+  const rawCacheFile = JSON.parse(fs.readFileSync(RAW_PR_CACHE_PATH, "utf-8"));
+  const rawCacheData = Array.isArray(rawCacheFile) ? rawCacheFile : (rawCacheFile.prs ?? []);
   const N = rawCacheData.length;
 
   const rl = readline.createInterface({
@@ -326,15 +327,27 @@ async function fetchPRDetails(octokit, config, prNumber) {
 // Section 11 — AI Semantic Grouping (AI Phase)
 // ============================================================================
 
-async function groupDirectCommits(directCommitCandidates, selectedProvider) {
-  const commitsList = directCommitCandidates
-    .map(
-      (c) =>
-        `SHA: ${c.sha}\nDate: ${c.date}\nMessage: ${c.message}\nFiles: ${c.files_changed.join(", ")}\nModules: ${c.modules_touched.join(", ")}`,
-    )
-    .join("\n---\n");
+async function groupDirectCommits(directCommitCandidates, selectedProvider, projectKeys = []) {
+  const BATCH_SIZE = 15;
+  const allGroups = [];
+  const totalBatches = Math.ceil(directCommitCandidates.length / BATCH_SIZE);
+  const projectKeysStr = projectKeys.length > 0
+    ? projectKeys.join(", ")
+    : "project keys not configured";
 
-  const prompt = `Analyze and group the following direct commits by semantic relatedness (same feature, bug, or module):
+  for (let i = 0; i < directCommitCandidates.length; i += BATCH_SIZE) {
+    const batch = directCommitCandidates.slice(i, i + BATCH_SIZE);
+    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+    process.stdout.write(`\r  Grouping batch ${batchNum}/${totalBatches}...`);
+
+    const commitsList = batch
+      .map(
+        (c) =>
+          `SHA: ${c.sha}\nDate: ${c.date}\nMessage: ${c.message}\nFiles: ${c.files_changed.join(", ")}\nModules: ${c.modules_touched.join(", ")}`,
+      )
+      .join("\n---\n");
+
+    const prompt = `Analyze and group the following direct commits by semantic relatedness (same feature, bug, or module):
 
 ${commitsList}
 
@@ -347,16 +360,20 @@ Return a JSON array of groups. Each group should have:
   "ticket_ids": ["ID1", "ID2"]
 }
 
-Extract ticket IDs from commit messages using patterns like SD-123 or JIRA-456.
+Extract ticket IDs from commit messages. Only include IDs that match the known Jira project key prefixes: ${projectKeysStr} (format: KEY-NUMBER, e.g., SD-123). If no matching ticket IDs are found, use an empty array.
 Group related commits together. Respond ONLY with valid JSON, no markdown fences.`;
 
-  const result = await executeProvider(selectedProvider, prompt);
-  let jsonResponse = result.response;
+    const result = await executeProvider(selectedProvider, prompt);
+    let jsonResponse = result.response;
 
-  jsonResponse = jsonResponse.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+    jsonResponse = jsonResponse.replace(/```json\n?/g, "").replace(/```\n?/g, "");
 
-  const parsed = JSON.parse(jsonResponse);
-  return parsed;
+    const parsed = JSON.parse(jsonResponse);
+    allGroups.push(...parsed);
+  }
+
+  console.log("");
+  return allGroups;
 }
 
 // ============================================================================
@@ -460,11 +477,14 @@ Respond ONLY with valid JSON, no markdown fences.`;
     // Step A — Fetch all PRs
     let allPRs;
     let allPRDetails = {};
+    let cachedDeveloperEmails = [];
 
     if (useRawCache) {
-      const rawCacheData = JSON.parse(
+      const rawCacheFile = JSON.parse(
         fs.readFileSync(RAW_PR_CACHE_PATH, "utf-8"),
       );
+      const rawCacheData = Array.isArray(rawCacheFile) ? rawCacheFile : (rawCacheFile.prs ?? []);
+      cachedDeveloperEmails = Array.isArray(rawCacheFile.developer_emails) ? rawCacheFile.developer_emails : [];
       allPRs = rawCacheData.map((entry) => ({
         number: entry.pr_number,
         title: entry.pr_title,
@@ -504,6 +524,9 @@ Respond ONLY with valid JSON, no markdown fences.`;
           // Unable to determine authenticated user's email; leave developerEmails empty
           developerEmails = [];
         }
+      } else {
+        // In cache mode, restore emails persisted during the original fetch
+        developerEmails = cachedDeveloperEmails;
       }
     }
 
@@ -589,7 +612,7 @@ Respond ONLY with valid JSON, no markdown fences.`;
       }));
       fs.writeFileSync(
         RAW_PR_CACHE_PATH,
-        JSON.stringify(rawCacheEntries, null, 2),
+        JSON.stringify({ developer_emails: developerEmails, prs: rawCacheEntries }, null, 2),
       );
     }
 
@@ -628,11 +651,12 @@ Respond ONLY with valid JSON, no markdown fences.`;
 
     // Step D — Ticket ID & Module extraction for PRs
     for (const pr of enrichedPRs) {
+      const projectKeys = config.jira?.project_keys ?? [];
       const ticketIds = mergeTicketIds(
-        extractTicketIds(pr.title),
-        extractTicketIds(pr.body || ""),
+        extractTicketIds(pr.title, projectKeys),
+        extractTicketIds(pr.body || "", projectKeys),
         extractJiraTicketLinks(pr.body || ""),
-        pr.commits.flatMap((c) => extractTicketIds(c.commit.message)),
+        pr.commits.flatMap((c) => extractTicketIds(c.commit.message, projectKeys)),
       );
 
       const modules = extractModules(pr.files.map((f) => f.filename));
@@ -684,6 +708,7 @@ Respond ONLY with valid JSON, no markdown fences.`;
           commitGroups = await groupDirectCommits(
             directCommitCandidates,
             selectedProvider,
+            config.jira?.project_keys ?? [],
           );
         } catch (error) {
           console.error(`Failed to group direct commits: ${error.message}`);
@@ -700,6 +725,7 @@ Respond ONLY with valid JSON, no markdown fences.`;
           commitGroups = await groupDirectCommits(
             directCommitCandidates,
             selectedProvider,
+            config.jira?.project_keys ?? [],
           );
         } catch (error) {
           console.error(`Failed to group direct commits: ${error.message}`);
