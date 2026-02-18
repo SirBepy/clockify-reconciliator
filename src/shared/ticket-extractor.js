@@ -9,12 +9,12 @@ export function extractTicketIds(text) {
     return [];
   }
 
-  // Regex pattern: 2-10 uppercase letters, hyphen, one or more digits
-  const pattern = /\b([A-Z]{2,10}-\d+)\b/g;
+  // Regex pattern: 2-10 letters (any case), hyphen, one or more digits
+  const pattern = /\b([A-Za-z]{2,10}-\d+)\b/gi;
   const matches = Array.from(text.matchAll(pattern));
 
-  // Extract the matched text and deduplicate using Set
-  const uniqueIds = new Set(matches.map((match) => match[1]));
+  // Extract the matched text, normalize to uppercase and deduplicate using Set
+  const uniqueIds = new Set(matches.map((match) => match[1].toUpperCase()));
 
   return Array.from(uniqueIds);
 }

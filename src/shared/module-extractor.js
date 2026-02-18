@@ -14,26 +14,20 @@ export function extractModule(filePath) {
   // Normalize path to use forward slashes for consistent handling
   const normalizedPath = filePath.replace(/\\/g, "/");
 
-  // Check for src/ or lib/ directories
-  const srcMatch = normalizedPath.match(/\/src\/([^/]+)/);
+  // Check for src/ or lib/ directories (match with or without leading slash)
+  const srcMatch = normalizedPath.match(/(?:^|\/)src\/([^/]+)/);
   if (srcMatch) {
     const segment = srcMatch[1];
-    return segment === "index.js" ? "root" : segment;
+    // If captured segment contains a dot, it's a filename (e.g., index.js) -> treat as root
+    if (segment.includes(".")) return "src/root";
+    return `src/${segment}`;
   }
 
-  const libMatch = normalizedPath.match(/\/lib\/([^/]+)/);
+  const libMatch = normalizedPath.match(/(?:^|\/)lib\/([^/]+)/);
   if (libMatch) {
     const segment = libMatch[1];
-    return segment === "index.js" ? "root" : segment;
-  }
-
-  // Handle root-level src/index.js or lib/index.js
-  if (normalizedPath.includes("/src/") && normalizedPath.endsWith("index.js")) {
-    return "root";
-  }
-
-  if (normalizedPath.includes("/lib/") && normalizedPath.endsWith("index.js")) {
-    return "root";
+    if (segment.includes(".")) return "lib/root";
+    return `lib/${segment}`;
   }
 
   // Handle test files

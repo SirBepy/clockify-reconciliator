@@ -47,17 +47,24 @@ export async function promptProviderSelection(providers) {
     output: process.stdout,
   });
 
-  return new Promise((resolve, reject) => {
-    rl.question("Enter selection (number): ", (answer) => {
-      rl.close();
+  return new Promise((resolve) => {
+    const ask = () => {
+      rl.question("Enter selection (number): ", (answer) => {
+        const index = parseInt(answer, 10) - 1;
+        if (isNaN(index) || index < 0 || index >= providers.length) {
+          console.log(
+            `Invalid selection. Please enter a number between 1 and ${providers.length}.`,
+          );
+          ask();
+          return;
+        }
 
-      const index = parseInt(answer, 10) - 1;
-      if (index < 0 || index >= providers.length || isNaN(index)) {
-        reject(new Error(`Invalid selection: ${answer}`));
-      } else {
+        rl.close();
         resolve(providers[index]);
-      }
-    });
+      });
+    };
+
+    ask();
   });
 }
 

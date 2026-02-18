@@ -1,8 +1,11 @@
 node_modules/
 config.json
-cache/
-input/
-output/
+cache/*
+!cache/.gitkeep
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
 .DS_Store
 *.log
 npm-debug.log*
