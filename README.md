@@ -33,31 +33,68 @@ The `input/`, `output/`, and `cache/` directories are pre-created in the repo (v
 
 ---
 
-## Workflow Order
+## Running
 
-Run the tools in this order. Each step is idempotent — re-running a step (without `--force-refresh`) uses cached results:
+### Run everything at once (recommended)
 
+```bash
+npm run full
 ```
-1. node clockify-preprocessor.js      # Clean the Clockify CSV → cache/clockify-cleaned.csv
-2. node collect-direct-commits.js     # Fetch main-branch commits → cache/direct-commits.json
-3. node github-summarizer.js          # Fetch PRs + AI summaries → cache/github-summary.json
-4. node jira-summarizer.js            # Fetch tickets + AI summaries → cache/jira-summary.json
-5. node clockify-enricher.js          # Detect patterns + enrich entries → output/
-```
+
+Runs all 5 steps in order. If a step fails, re-running `npm run full` will ask whether to resume from the failed step or start over.
+
+### Run individual steps
+
+Each step can be run by name or by number:
+
+| Named command       | Step alias    | What it does                                        |
+| ------------------- | ------------- | --------------------------------------------------- |
+| `npm run preprocess` | `npm run step1` | Clean the Clockify CSV → `cache/clockify-cleaned.csv` |
+| `npm run commits`    | `npm run step2` | Fetch main-branch commits → `cache/direct-commits.json` |
+| `npm run github`     | `npm run step3` | Fetch PRs + AI summaries → `cache/github-summary.json` |
+| `npm run jira`       | `npm run step4` | Fetch tickets + AI summaries → `cache/jira-summary.json` |
+| `npm run enrich`     | `npm run step5` | Detect patterns + enrich entries → `output/` |
+
+Each step is idempotent — re-running without `--force-refresh` uses cached results.
 
 Steps 3–5 prompt for AI provider selection interactively.
 
 ---
 
-## CLI Flags Per Tool
+## CLI Flags
 
-| Flag                     | Tool(s)                         | Description                                       |
-| ------------------------ | ------------------------------- | ------------------------------------------------- |
-| `--input <path>` / `-i`  | `clockify-preprocessor.js` only | Override input CSV path (overrides `config.json`) |
-| `--force-refresh` / `-f` | All tools                       | Clear this tool's cache and start fresh           |
-| `--help` / `-h`          | All tools                       | Print usage and exit                              |
+Pass flags after `--` when using npm scripts, e.g. `npm run github -- --force-refresh`.
 
-**Note on `--force-refresh` scope for the enricher**: `clockify-enricher.js --force-refresh` clears only `cache/patterns.json` and `cache/enrichment-progress.ndjson`. The GitHub and Jira caches (`cache/github-summary.json` and `cache/jira-summary.json`) are **not** cleared; to refresh those, run `github-summarizer.js --force-refresh` or `jira-summarizer.js --force-refresh` separately.
+| Flag                     | Tool(s)                    | Description                                       |
+| ------------------------ | -------------------------- | ------------------------------------------------- |
+| `--input <path>` / `-i`  | `preprocess` / `step1` only | Override input CSV path (overrides `config.json`) |
+| `--force-refresh` / `-f` | All tools                  | Clear this tool's cache and start fresh           |
+| `--help` / `-h`          | All tools                  | Print usage and exit                              |
+
+**Note on `--force-refresh` scope for the enricher**: `npm run enrich -- --force-refresh` clears only `cache/patterns.json` and `cache/enrichment-progress.ndjson`. The GitHub and Jira caches are **not** cleared; to refresh those, run `npm run github -- --force-refresh` or `npm run jira -- --force-refresh` separately.
+
+---
+
+## Project Structure
+
+```
+clockify-reconciliator/
+├── src/
+│   ├── steps/              # The 5 pipeline scripts + run-all orchestrator
+│   │   ├── run-all.js
+│   │   ├── clockify-preprocessor.js
+│   │   ├── collect-direct-commits.js
+│   │   ├── github-summarizer.js
+│   │   ├── jira-summarizer.js
+│   │   └── clockify-enricher.js
+│   └── shared/             # Shared utilities (config, cache, providers, etc.)
+├── cli-providers/          # AI provider scripts (built-in + custom)
+├── input/                  # Place your Clockify CSV export here
+├── cache/                  # Intermediate data (auto-generated, gitignored)
+├── output/                 # Final enriched CSVs and diff (auto-generated)
+├── config.json             # Your credentials and settings (gitignored)
+└── config.example.json     # Config template
+```
 
 ---
 
@@ -149,8 +186,8 @@ main();
 | ------------------------------------------------ | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `Config file not found`                          | `config.json` missing                                      | Copy `config.example.json` → `config.json`                                                       |
 | `CSV missing required columns`                   | Wrong Clockify export type                                 | Export **Detailed Report** (not summary) from Clockify                                           |
-| `cache/direct-commits.json not found`            | Steps run out of order                                     | Run `collect-direct-commits.js` before `github-summarizer.js`                                    |
-| `Run [tool] first`                               | Missing cache dependency                                   | Follow the 5-step workflow order                                                                 |
+| `cache/direct-commits.json not found`            | Steps run out of order                                     | Run `npm run commits` before `npm run github`                                                    |
+| `Run [tool] first`                               | Missing cache dependency                                   | Follow the 5-step workflow order or use `npm run full`                                           |
 | `GitHub rate limit exceeded`                     | Too many API calls                                         | Wait ~1 hour, then re-run. If PR data was already fetched, choose `c` to skip re-fetching.       |
 | `GitHub authentication failed`                   | Bad PAT                                                    | Check `github.personal_access_token` in `config.json`; verify PAT scopes (`repo` + `user:email`) |
 | `Jira API error: 401`                            | Bad Jira credentials                                       | Verify `jira.user_email` and `jira.api_token` in `config.json`                                   |
@@ -185,7 +222,7 @@ main();
 
 Since this tool operates on private real data that cannot be committed to the repo, follow these manual E2E validation steps:
 
-1. **Happy path**: run all 5 steps in order; verify `output/enriched-mirrored.csv` and `output/enriched-standardized.csv` exist; sum `Duration (h)` column in input and output — totals must match exactly.
+1. **Happy path**: run `npm run full`; verify `output/enriched-mirrored.csv` and `output/enriched-standardized.csv` exist; sum `Duration (h)` column in input and output — totals must match exactly.
 
 2. **Hours preservation**: open both CSVs in a spreadsheet; group by date; confirm per-day totals are identical to the original.
 
@@ -193,14 +230,16 @@ Since this tool operates on private real data that cannot be committed to the re
 
 4. **Confidence distribution**: check `AI_Confidence` column; target ≥80% high/medium entries.
 
-5. **Date range mismatch**: temporarily set `github.date_from` to a date after the Clockify CSV range; run enricher; confirm the mismatch prompt appears.
+5. **Date range mismatch**: temporarily set `github.date_from` to a date after the Clockify CSV range; run `npm run enrich`; confirm the mismatch prompt appears.
 
-6. **Resume after interruption**: kill `github-summarizer.js` mid-run (Ctrl+C); re-run without `--force-refresh`; confirm it resumes from where it stopped (not from the beginning).
+6. **Resume after interruption**: kill `npm run github` mid-run (Ctrl+C); re-run without `--force-refresh`; confirm it resumes from where it stopped (not from the beginning).
 
-7. **Force refresh**: run `clockify-enricher.js --force-refresh`; confirm `cache/patterns.json` is regenerated but `cache/github-summary.json` and `cache/jira-summary.json` are untouched.
+7. **Force refresh**: run `npm run enrich -- --force-refresh`; confirm `cache/patterns.json` is regenerated but `cache/github-summary.json` and `cache/jira-summary.json` are untouched.
 
-8. **Missing cache**: delete `cache/direct-commits.json`; run `github-summarizer.js`; confirm the warning and continue/exit prompt appears.
+8. **Missing cache**: delete `cache/direct-commits.json`; run `npm run github`; confirm the warning and continue/exit prompt appears.
 
-9. **Invalid CSV**: run `clockify-preprocessor.js` with a summary (non-detailed) Clockify export; confirm the "CSV missing required columns" error.
+9. **Invalid CSV**: run `npm run preprocess` with a summary (non-detailed) Clockify export; confirm the "CSV missing required columns" error.
 
-10. **Bad credentials**: set a wrong `api_token` in `config.json`; run `jira-summarizer.js`; confirm a clear auth error message.
+10. **Bad credentials**: set a wrong `api_token` in `config.json`; run `npm run jira`; confirm a clear auth error message.
+
+11. **Run-all resume**: run `npm run full`, kill it during step 3; re-run `npm run full`; confirm it asks to resume from step 3.
