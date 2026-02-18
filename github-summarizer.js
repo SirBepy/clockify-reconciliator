@@ -35,6 +35,11 @@ const DIRECT_COMMITS_PATH = path.resolve(
   "cache",
   "direct-commits.json",
 );
+const RAW_PR_CACHE_PATH = path.resolve(
+  projectRoot,
+  "cache",
+  "pr-raw-details.json",
+);
 const GITHUB_PR_PAGE_SIZE = 100;
 
 // ============================================================================
@@ -126,7 +131,41 @@ if (!fs.existsSync(DIRECT_COMMITS_PATH)) {
 
 if (parsedArgs.values["force-refresh"]) {
   clearCache(CACHE_PATH);
+  clearCache(RAW_PR_CACHE_PATH);
   console.log("Cache cleared.");
+}
+
+// ============================================================================
+// Section 5b — Raw PR Cache Check
+// ============================================================================
+
+let useRawCache = false;
+
+if (!parsedArgs.values["force-refresh"] && fs.existsSync(RAW_PR_CACHE_PATH)) {
+  const rawCacheData = JSON.parse(fs.readFileSync(RAW_PR_CACHE_PATH, "utf-8"));
+  const N = rawCacheData.length;
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const answer = await new Promise((resolve) => {
+    rl.question(
+      `Found cached PR data (${N} PRs). Use cache or re-fetch from GitHub? (c/r): `,
+      (answer) => {
+        rl.close();
+        resolve(answer);
+      },
+    );
+  });
+
+  if (answer.toLowerCase() === "c") {
+    useRawCache = true;
+  } else {
+    clearCache(RAW_PR_CACHE_PATH);
+    clearCache(CACHE_PATH);
+  }
 }
 
 // ============================================================================
@@ -419,7 +458,31 @@ Respond ONLY with valid JSON, no markdown fences.`;
 (async () => {
   try {
     // Step A — Fetch all PRs
-    const allPRs = await fetchAllPRs(octokit, config);
+    let allPRs;
+    let allPRDetails = {};
+
+    if (useRawCache) {
+      const rawCacheData = JSON.parse(
+        fs.readFileSync(RAW_PR_CACHE_PATH, "utf-8"),
+      );
+      allPRs = rawCacheData.map((entry) => ({
+        number: entry.pr_number,
+        title: entry.pr_title,
+        merged_at: entry.merged_at,
+        merge_commit_sha: entry.merge_commit_sha,
+        body: entry.body,
+      }));
+      for (const entry of rawCacheData) {
+        allPRDetails[entry.pr_number] = {
+          commits: entry.commits,
+          files: entry.files,
+          reviewCount: entry.reviewCount,
+        };
+      }
+      console.log(`Loaded ${allPRs.length} PRs from raw cache.`);
+    } else {
+      allPRs = await fetchAllPRs(octokit, config);
+    }
 
     // Resolve developerEmails: use config.github.developer_emails if present,
     // otherwise fall back to the authenticated user's email (normalized to lowercase)
@@ -432,13 +495,15 @@ Respond ONLY with valid JSON, no markdown fences.`;
         e.toLowerCase(),
       );
     } else {
-      try {
-        const auth = await octokit.users.getAuthenticated();
-        const email = auth?.data?.email;
-        if (email) developerEmails = [email.toLowerCase()];
-      } catch (err) {
-        // Unable to determine authenticated user's email; leave developerEmails empty
-        developerEmails = [];
+      if (!useRawCache) {
+        try {
+          const auth = await octokit.users.getAuthenticated();
+          const email = auth?.data?.email;
+          if (email) developerEmails = [email.toLowerCase()];
+        } catch (err) {
+          // Unable to determine authenticated user's email; leave developerEmails empty
+          developerEmails = [];
+        }
       }
     }
 
@@ -465,38 +530,68 @@ Respond ONLY with valid JSON, no markdown fences.`;
     }
 
     // Step B — Fetch PR details for all PRs (to build complete prShaSet)
-    const newPRCandidates = allPRs.filter(
-      (pr) => !processedPrNumbers.has(pr.number),
-    );
-    const allPRDetails = {};
     const enrichedPRs = [];
 
-    // Fetch details for all PRs (both new and cached)
-    for (let i = 0; i < allPRs.length; i++) {
-      const pr = allPRs[i];
-      const details = await fetchPRDetails(octokit, config, pr.number);
-      allPRDetails[pr.number] = details;
-      if (!processedPrNumbers.has(pr.number)) {
-        // Ownership filter: include PR only if it has at least one commit authored by developerEmails
-        let includePR = true;
-        if (Array.isArray(developerEmails) && developerEmails.length > 0) {
-          includePR = (details.commits || []).some(
-            (c) =>
-              !!c.commit?.author?.email &&
-              developerEmails.includes(c.commit.author.email.toLowerCase()),
-          );
-        }
-
-        if (includePR) {
-          enrichedPRs.push({ ...pr, ...details });
+    if (useRawCache) {
+      for (const pr of allPRs) {
+        if (!processedPrNumbers.has(pr.number)) {
+          const details = allPRDetails[pr.number];
+          // Ownership filter: include PR only if it has at least one commit authored by developerEmails
+          let includePR = true;
+          if (Array.isArray(developerEmails) && developerEmails.length > 0) {
+            includePR = (details.commits || []).some(
+              (c) =>
+                !!c.commit?.author?.email &&
+                developerEmails.includes(c.commit.author.email.toLowerCase()),
+            );
+          }
+          if (includePR) {
+            enrichedPRs.push({ ...pr, ...details });
+          }
         }
       }
-      process.stdout.write(
-        `\rFetching PR details... ${i + 1}/${allPRs.length}`,
+    } else {
+      for (let i = 0; i < allPRs.length; i++) {
+        const pr = allPRs[i];
+        const details = await fetchPRDetails(octokit, config, pr.number);
+        allPRDetails[pr.number] = details;
+        if (!processedPrNumbers.has(pr.number)) {
+          // Ownership filter: include PR only if it has at least one commit authored by developerEmails
+          let includePR = true;
+          if (Array.isArray(developerEmails) && developerEmails.length > 0) {
+            includePR = (details.commits || []).some(
+              (c) =>
+                !!c.commit?.author?.email &&
+                developerEmails.includes(c.commit.author.email.toLowerCase()),
+            );
+          }
+          if (includePR) {
+            enrichedPRs.push({ ...pr, ...details });
+          }
+        }
+        process.stdout.write(
+          `\rFetching PR details... ${i + 1}/${allPRs.length}`,
+        );
+      }
+
+      console.log("");
+
+      // Write raw PR cache after fresh fetch
+      const rawCacheEntries = allPRs.map((pr) => ({
+        pr_number: pr.number,
+        pr_title: pr.title,
+        merged_at: pr.merged_at,
+        merge_commit_sha: pr.merge_commit_sha,
+        body: pr.body,
+        commits: allPRDetails[pr.number]?.commits ?? [],
+        files: allPRDetails[pr.number]?.files ?? [],
+        reviewCount: allPRDetails[pr.number]?.reviewCount ?? 0,
+      }));
+      fs.writeFileSync(
+        RAW_PR_CACHE_PATH,
+        JSON.stringify(rawCacheEntries, null, 2),
       );
     }
-
-    console.log("");
 
     // Only PRs that pass the developerEmails ownership check are considered "new" for summarization
     const newPRs = enrichedPRs;

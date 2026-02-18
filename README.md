@@ -157,7 +157,7 @@ main();
 | `CSV missing required columns`                   | Wrong Clockify export type                                 | Export **Detailed Report** (not summary) from Clockify                                           |
 | `cache/direct-commits.json not found`            | Steps run out of order                                     | Run `collect-direct-commits.js` before `github-summarizer.js`                                    |
 | `Run [tool] first`                               | Missing cache dependency                                   | Follow the 5-step workflow order                                                                 |
-| `GitHub rate limit exceeded`                     | Too many API calls                                         | Wait ~1 hour; re-run without `--force-refresh` to resume                                         |
+| `GitHub rate limit exceeded`                     | Too many API calls                                         | Wait ~1 hour, then re-run. If PR data was already fetched, choose `c` to skip re-fetching.       |
 | `GitHub authentication failed`                   | Bad PAT                                                    | Check `github.personal_access_token` in `config.json`; verify PAT scopes (`repo` + `user:email`) |
 | `Jira API error: 401`                            | Bad Jira credentials                                       | Verify `jira.user_email` and `jira.api_token` in `config.json`                                   |
 | `ANTHROPIC_API_KEY environment variable not set` | Missing env var                                            | Export the key: `export ANTHROPIC_API_KEY=...` before running                                    |
