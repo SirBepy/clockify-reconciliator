@@ -5,7 +5,18 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "full": "node src/steps/run-all.js",
+    "preprocess": "node src/steps/clockify-preprocessor.js",
+    "commits": "node src/steps/collect-direct-commits.js",
+    "github": "node src/steps/github-summarizer.js",
+    "jira": "node src/steps/jira-summarizer.js",
+    "enrich": "node src/steps/clockify-enricher.js",
+    "step1": "node src/steps/clockify-preprocessor.js",
+    "step2": "node src/steps/collect-direct-commits.js",
+    "step3": "node src/steps/github-summarizer.js",
+    "step4": "node src/steps/jira-summarizer.js",
+    "step5": "node src/steps/clockify-enricher.js"
   },
   "keywords": [
     "clockify",
