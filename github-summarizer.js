@@ -188,26 +188,32 @@ const selectedProvider = await promptProviderSelection(providers);
 // ============================================================================
 
 const cachedItems = await initCache(CACHE_PATH);
-const processedPrNumbers = new Set(
-  cachedItems.filter((i) => i.type === "pr").map((i) => i.pr_number),
-);
-const commitGroupsDone = cachedItems.some((i) => i.type === "commit_group");
+const processedShas = new Set(cachedItems.filter((i) => i.sha).map((i) => i.sha));
 
-if (processedPrNumbers.size > 0) {
+if (processedShas.size > 0) {
   console.log(
-    `Resuming from cache: ${processedPrNumbers.size} PRs already processed.`,
+    `Resuming from cache: ${processedShas.size} commits already processed.`,
   );
+}
+
+// Drop legacy (non-commit) records from the NDJSON file before proceeding
+if (!parsedArgs.values["force-refresh"]) {
+  const validCachedItems = cachedItems.filter((i) => i.sha && !i.type);
+  if (validCachedItems.length < cachedItems.length) {
+    console.log(
+      `Dropping ${cachedItems.length - validCachedItems.length} legacy cache entries from NDJSON.`,
+    );
+    const ndjsonContent =
+      validCachedItems.length > 0
+        ? validCachedItems.map((i) => JSON.stringify(i)).join("\n") + "\n"
+        : "";
+    fs.writeFileSync(CACHE_PATH, ndjsonContent);
+  }
 }
 
 // ============================================================================
 // Section 8 — Helper Functions (Script Phase)
 // ============================================================================
-
-function computeComplexitySignal(filesChangedCount) {
-  if (filesChangedCount < 5) return "low";
-  if (filesChangedCount <= 15) return "medium";
-  return "high";
-}
 
 function extractJiraTicketLinks(text) {
   const regex = /\/browse\/([A-Z]{2,10}-\d+)/g;
@@ -298,7 +304,7 @@ async function fetchAllPRs(octokit, config) {
 // Section 10 — PR Detail Fetching (Script Phase)
 // ============================================================================
 
-async function fetchPRDetails(octokit, config, prNumber) {
+async function fetchPRDetails(octokit, config, prNumber, developerEmails = []) {
   const commits = await octokit.paginate(octokit.pulls.listCommits, {
     owner: config.github.repo_owner,
     repo: config.github.repo_name,
@@ -320,100 +326,50 @@ async function fetchPRDetails(octokit, config, prNumber) {
     per_page: 100,
   });
 
-  return { commits, files, reviewCount: reviews.length };
-}
-
-// ============================================================================
-// Section 11 — AI Semantic Grouping (AI Phase)
-// ============================================================================
-
-async function groupDirectCommits(directCommitCandidates, selectedProvider, projectKeys = []) {
-  const BATCH_SIZE = 15;
-  const allGroups = [];
-  const totalBatches = Math.ceil(directCommitCandidates.length / BATCH_SIZE);
-  const projectKeysStr = projectKeys.length > 0
-    ? projectKeys.join(", ")
-    : "project keys not configured";
-
-  for (let i = 0; i < directCommitCandidates.length; i += BATCH_SIZE) {
-    const batch = directCommitCandidates.slice(i, i + BATCH_SIZE);
-    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-    process.stdout.write(`\r  Grouping batch ${batchNum}/${totalBatches}...`);
-
-    const commitsList = batch
-      .map(
-        (c) =>
-          `SHA: ${c.sha}\nDate: ${c.date}\nMessage: ${c.message}\nFiles: ${c.files_changed.join(", ")}\nModules: ${c.modules_touched.join(", ")}`,
-      )
-      .join("\n---\n");
-
-    const prompt = `Analyze and group the following direct commits by semantic relatedness (same feature, bug, or module):
-
-${commitsList}
-
-Return a JSON array of groups. Each group should have:
-{
-  "date": "YYYY-MM-DD",
-  "commits": [{"sha": "...", "message": "..."}],
-  "files_changed": ["path1", "path2"],
-  "modules_touched": ["module1", "module2"],
-  "ticket_ids": ["ID1", "ID2"]
-}
-
-Extract ticket IDs from commit messages. Only include IDs that match the known Jira project key prefixes: ${projectKeysStr} (format: KEY-NUMBER, e.g., SD-123). If no matching ticket IDs are found, use an empty array.
-Group related commits together. Respond ONLY with valid JSON, no markdown fences.`;
-
-    const result = await executeProvider(selectedProvider, prompt);
-    let jsonResponse = result.response;
-
-    jsonResponse = jsonResponse.replace(/```json\n?/g, "").replace(/```\n?/g, "");
-
-    const parsed = JSON.parse(jsonResponse);
-    allGroups.push(...parsed);
+  const commit_details = {};
+  for (const commit of commits) {
+    const isDevCommit =
+      developerEmails.length === 0 ||
+      (!!commit.commit?.author?.email &&
+        developerEmails.includes(commit.commit.author.email.toLowerCase()));
+    if (isDevCommit) {
+      const { data } = await octokit.repos.getCommit({
+        owner: config.github.repo_owner,
+        repo: config.github.repo_name,
+        ref: commit.sha,
+      });
+      commit_details[commit.sha] = {
+        files: data.files ?? [],
+        lines_added: (data.files ?? []).reduce((sum, f) => sum + f.additions, 0),
+        lines_removed: (data.files ?? []).reduce((sum, f) => sum + f.deletions, 0),
+      };
+    }
   }
 
-  console.log("");
-  return allGroups;
+  return { commits, files, reviewCount: reviews.length, commit_details };
 }
 
 // ============================================================================
 // Section 12 — AI Summarization (AI Phase)
 // ============================================================================
 
-async function summarizePR(pr, details, selectedProvider, developerEmails) {
-  // Filter commits to only those authored by developerEmails (if available)
-  const devEmails = Array.isArray(developerEmails) ? developerEmails : [];
-  let relevantCommits = details.commits;
-  if (devEmails.length > 0) {
-    const filtered = details.commits.filter(
-      (c) =>
-        !!c.commit?.author?.email &&
-        devEmails.includes(c.commit.author.email.toLowerCase()),
-    );
-    if (filtered.length > 0) relevantCommits = filtered;
-  }
-
-  const commitMessages = relevantCommits
+async function summarizePRContext(pr, details, selectedProvider) {
+  const commitMessages = (details.commits || [])
     .map((c) => c.commit.message)
     .join("\n---\n");
-  const filesChanged = details.files.map((f) => f.filename).join(", ");
+  const filesChanged = (details.files || []).map((f) => f.filename).join(", ");
   const modulesTouched = extractModules(
-    details.files.map((f) => f.filename),
+    (details.files || []).map((f) => f.filename),
   ).join(", ");
-  const filesChangedCount = details.files.length;
-  const complexitySignal = computeComplexitySignal(filesChangedCount);
 
-  const prompt = `Summarize the following GitHub PR for time-tracking enrichment. Focus on WHAT WAS BUILT based on the code changes, NOT the PR description.
+  const prompt = `Analyze the following GitHub PR and provide a short paragraph describing what was built across the whole PR. Focus on WHAT WAS BUILT based on the code changes.
 
 PR #${pr.number}: ${pr.title}
-Complexity: ${complexitySignal}
-Files changed: ${filesChangedCount}
-Reviews: ${details.reviewCount}
 
 Commit messages:
 ${commitMessages}
 
-Files modified:
+Files changed:
 ${filesChanged}
 
 Modules touched:
@@ -421,7 +377,42 @@ ${modulesTouched}
 
 Provide a concise JSON response:
 {
-  "ai_description": "Brief description of what was built based on code changes"
+  "pr_ai_description": "Short paragraph describing what was built across this PR"
+}
+
+Respond ONLY with valid JSON, no markdown fences.`;
+
+  const result = await executeProvider(selectedProvider, prompt);
+  let jsonResponse = result.response;
+
+  jsonResponse = jsonResponse.replace(/```json\n?/g, "").replace(/```\n?/g, "");
+
+  const parsed = JSON.parse(jsonResponse);
+  return parsed.pr_ai_description;
+}
+
+async function summarizeCommit(commitData, prContext, selectedProvider, projectKeys = []) {
+  const prompt = `Summarize the following GitHub commit for time-tracking enrichment. Focus on WHAT WAS BUILT based on the code changes.
+
+Commit: ${commitData.sha}
+Date: ${commitData.committed_at}
+Message: ${commitData.message}
+
+Files changed:
+${commitData.files_changed.join(", ")}
+
+Modules touched:
+${commitData.modules_touched.join(", ")}
+
+Lines added: ${commitData.lines_added}
+Lines removed: ${commitData.lines_removed}
+
+PR Context (PR #${prContext.pr_number}: ${prContext.pr_title}):
+${prContext.pr_ai_description}
+
+Provide a concise JSON response:
+{
+  "ai_description": "Brief description of what was built in this specific commit"
 }
 
 Respond ONLY with valid JSON, no markdown fences.`;
@@ -435,26 +426,25 @@ Respond ONLY with valid JSON, no markdown fences.`;
   return parsed.ai_description;
 }
 
-async function summarizeCommitGroup(group, selectedProvider) {
-  const commitMessages = group.commits.map((c) => c.message).join("\n---\n");
-  const filesChanged = group.files_changed.join(", ");
-  const modulesTouched = group.modules_touched.join(", ");
+async function summarizeOrphanCommit(commitData, selectedProvider, projectKeys = []) {
+  const prompt = `Summarize the following direct commit for time-tracking enrichment. Focus on WHAT WAS BUILT based on the code changes.
 
-  const prompt = `Summarize the following group of related direct commits for time-tracking enrichment.
+Commit: ${commitData.sha}
+Date: ${commitData.committed_at}
+Message: ${commitData.message}
 
-Date: ${group.date}
-Commits:
-${commitMessages}
-
-Files modified:
-${filesChanged}
+Files changed:
+${commitData.files_changed.join(", ")}
 
 Modules touched:
-${modulesTouched}
+${commitData.modules_touched.join(", ")}
+
+Lines added: ${commitData.lines_added}
+Lines removed: ${commitData.lines_removed}
 
 Provide a concise JSON response:
 {
-  "ai_description": "Brief description of what was built based on these commits"
+  "ai_description": "Brief description of what was built in this commit"
 }
 
 Respond ONLY with valid JSON, no markdown fences.`;
@@ -497,6 +487,7 @@ Respond ONLY with valid JSON, no markdown fences.`;
           commits: entry.commits,
           files: entry.files,
           reviewCount: entry.reviewCount,
+          commit_details: entry.commit_details ?? {},
         };
       }
       console.log(`Loaded ${allPRs.length} PRs from raw cache.`);
@@ -557,40 +548,36 @@ Respond ONLY with valid JSON, no markdown fences.`;
 
     if (useRawCache) {
       for (const pr of allPRs) {
-        if (!processedPrNumbers.has(pr.number)) {
-          const details = allPRDetails[pr.number];
-          // Ownership filter: include PR only if it has at least one commit authored by developerEmails
-          let includePR = true;
-          if (Array.isArray(developerEmails) && developerEmails.length > 0) {
-            includePR = (details.commits || []).some(
-              (c) =>
-                !!c.commit?.author?.email &&
-                developerEmails.includes(c.commit.author.email.toLowerCase()),
-            );
-          }
-          if (includePR) {
-            enrichedPRs.push({ ...pr, ...details });
-          }
+        const details = allPRDetails[pr.number];
+        // Ownership filter: include PR only if it has at least one commit authored by developerEmails
+        let includePR = true;
+        if (Array.isArray(developerEmails) && developerEmails.length > 0) {
+          includePR = (details.commits || []).some(
+            (c) =>
+              !!c.commit?.author?.email &&
+              developerEmails.includes(c.commit.author.email.toLowerCase()),
+          );
+        }
+        if (includePR) {
+          enrichedPRs.push({ ...pr, ...details });
         }
       }
     } else {
       for (let i = 0; i < allPRs.length; i++) {
         const pr = allPRs[i];
-        const details = await fetchPRDetails(octokit, config, pr.number);
+        const details = await fetchPRDetails(octokit, config, pr.number, developerEmails);
         allPRDetails[pr.number] = details;
-        if (!processedPrNumbers.has(pr.number)) {
-          // Ownership filter: include PR only if it has at least one commit authored by developerEmails
-          let includePR = true;
-          if (Array.isArray(developerEmails) && developerEmails.length > 0) {
-            includePR = (details.commits || []).some(
-              (c) =>
-                !!c.commit?.author?.email &&
-                developerEmails.includes(c.commit.author.email.toLowerCase()),
-            );
-          }
-          if (includePR) {
-            enrichedPRs.push({ ...pr, ...details });
-          }
+        // Ownership filter: include PR only if it has at least one commit authored by developerEmails
+        let includePR = true;
+        if (Array.isArray(developerEmails) && developerEmails.length > 0) {
+          includePR = (details.commits || []).some(
+            (c) =>
+              !!c.commit?.author?.email &&
+              developerEmails.includes(c.commit.author.email.toLowerCase()),
+          );
+        }
+        if (includePR) {
+          enrichedPRs.push({ ...pr, ...details });
         }
         process.stdout.write(
           `\rFetching PR details... ${i + 1}/${allPRs.length}`,
@@ -609,15 +596,13 @@ Respond ONLY with valid JSON, no markdown fences.`;
         commits: allPRDetails[pr.number]?.commits ?? [],
         files: allPRDetails[pr.number]?.files ?? [],
         reviewCount: allPRDetails[pr.number]?.reviewCount ?? 0,
+        commit_details: allPRDetails[pr.number]?.commit_details ?? {},
       }));
       fs.writeFileSync(
         RAW_PR_CACHE_PATH,
         JSON.stringify({ developer_emails: developerEmails, prs: rawCacheEntries }, null, 2),
       );
     }
-
-    // Only PRs that pass the developerEmails ownership check are considered "new" for summarization
-    const newPRs = enrichedPRs;
 
     // Step C — Load direct commits & SHA subtraction
     let allDirectCommits = [];
@@ -649,203 +634,194 @@ Respond ONLY with valid JSON, no markdown fences.`;
       `Identified ${directCommitCandidates.length} direct commit candidates after subtracting PR-associated SHAs`,
     );
 
-    // Step D — Ticket ID & Module extraction for PRs
-    for (const pr of enrichedPRs) {
-      const projectKeys = config.jira?.project_keys ?? [];
-      const ticketIds = mergeTicketIds(
-        extractTicketIds(pr.title, projectKeys),
-        extractTicketIds(pr.body || "", projectKeys),
-        extractJiraTicketLinks(pr.body || ""),
-        pr.commits.flatMap((c) => extractTicketIds(c.commit.message, projectKeys)),
-      );
-
-      const modules = extractModules(pr.files.map((f) => f.filename));
-      const filesChangedCount = pr.files.length;
-      const linesAdded = pr.files.reduce((sum, f) => sum + f.additions, 0);
-      const linesRemoved = pr.files.reduce((sum, f) => sum + f.deletions, 0);
-      const complexitySignal = computeComplexitySignal(filesChangedCount);
-
-      pr.enriched = {
-        ticketIds,
-        modules,
-        filesChangedCount,
-        linesAdded,
-        linesRemoved,
-        complexitySignal,
-      };
-    }
-
-    // Step E — AI Semantic Grouping of Direct Commits
-    // Decide whether to reuse cached commit_group entries or regenerate grouping
-    let commitGroups = [];
-    let commitGroupsFromCache = false;
-
-    // Gather cached commit groups
-    const cachedCommitGroups = cachedItems.filter(
-      (i) => i.type === "commit_group",
-    );
-    // Build a set of SHAs represented by cached groups
-    const cachedGroupShas = new Set();
-    for (const g of cachedCommitGroups) {
-      if (Array.isArray(g.commits)) {
-        for (const c of g.commits) {
-          if (c && c.sha) cachedGroupShas.add(c.sha);
-        }
-      }
-    }
-
-    // If there are direct commit candidates, check whether cached groups cover them
-    if (directCommitCandidates.length > 0) {
-      const needRegenerate = directCommitCandidates.some(
-        (c) => !cachedGroupShas.has(c.sha),
-      );
-
-      if (needRegenerate) {
-        console.log(
-          "AI grouping direct commits (regenerating because new direct commits found)...",
-        );
-        try {
-          commitGroups = await groupDirectCommits(
-            directCommitCandidates,
-            selectedProvider,
-            config.jira?.project_keys ?? [],
-          );
-        } catch (error) {
-          console.error(`Failed to group direct commits: ${error.message}`);
-          process.exit(1);
-        }
-      } else if (cachedCommitGroups.length > 0) {
-        // Cached groups fully cover current direct commit candidates — reuse them
-        commitGroups = cachedCommitGroups;
-        commitGroupsFromCache = true;
-      } else {
-        // No cached groups exist, but we have candidates -> generate
-        console.log("AI grouping direct commits...");
-        try {
-          commitGroups = await groupDirectCommits(
-            directCommitCandidates,
-            selectedProvider,
-            config.jira?.project_keys ?? [],
-          );
-        } catch (error) {
-          console.error(`Failed to group direct commits: ${error.message}`);
-          process.exit(1);
-        }
-      }
-    } else if (cachedCommitGroups.length > 0) {
-      // No current direct candidates but cached groups exist — reuse cached groups
-      commitGroups = cachedCommitGroups;
-      commitGroupsFromCache = true;
-    }
-
-    // Step F — AI Summarization loop
-    const totalItems =
-      newPRs.length + (commitGroupsFromCache ? 0 : commitGroups.length);
-    let processedCount = 0;
-
+    // Step E — Build PR-level context map
+    const prContextMap = {};
     for (const pr of enrichedPRs) {
       try {
-        const ai_description = await summarizePR(
+        prContextMap[pr.number] = await summarizePRContext(
           pr,
-          {
-            commits: pr.commits,
-            files: pr.files,
-            reviewCount: pr.reviewCount,
-          },
+          allPRDetails[pr.number],
           selectedProvider,
-          developerEmails,
-        );
-
-        // Prepare commit messages filtered to developer-authored commits (fallback to all)
-        const devEmailsForRecord = Array.isArray(developerEmails)
-          ? developerEmails
-          : [];
-        let recordCommits = pr.commits;
-        if (devEmailsForRecord.length > 0) {
-          const filtered = pr.commits.filter(
-            (c) =>
-              !!c.commit?.author?.email &&
-              devEmailsForRecord.includes(c.commit.author.email.toLowerCase()),
-          );
-          if (filtered.length > 0) recordCommits = filtered;
-        }
-
-        const record = {
-          type: "pr",
-          pr_number: pr.number,
-          pr_title: pr.title,
-          merged_at: pr.merged_at.slice(0, 10),
-          commits_count: pr.commits.length,
-          files_changed: pr.enriched.filesChangedCount,
-          lines_added: pr.enriched.linesAdded,
-          lines_removed: pr.enriched.linesRemoved,
-          review_iterations: pr.reviewCount,
-          modules_touched: pr.enriched.modules,
-          commit_messages: recordCommits.map((c) => c.commit.message),
-          complexity_signal: pr.enriched.complexitySignal,
-          ai_description,
-          ticket_ids: pr.enriched.ticketIds,
-        };
-
-        await appendToCache(CACHE_PATH, record);
-        processedCount++;
-        process.stdout.write(
-          `\rSummarizing PRs and commit groups... ${processedCount}/${totalItems}`,
         );
       } catch (error) {
         console.warn(
-          `\nWarning: Failed to process PR #${pr.number}: ${error.message}`,
+          `\nWarning: Failed to summarize PR #${pr.number} context: ${error.message}`,
         );
-        continue;
+        prContextMap[pr.number] = pr.title;
       }
     }
 
-    if (!commitGroupsFromCache) {
-      for (const group of commitGroups) {
+    // Step F — Per-commit summaries for PR commits
+    const totalPRCommits = enrichedPRs.reduce((sum, pr) => {
+      const details = allPRDetails[pr.number];
+      const devCommits = (details.commits || []).filter(
+        (c) =>
+          developerEmails.length === 0 ||
+          (!!c.commit?.author?.email &&
+            developerEmails.includes(c.commit.author.email.toLowerCase())),
+      );
+      return sum + devCommits.length;
+    }, 0);
+
+    const totalCommits = totalPRCommits + directCommitCandidates.length;
+    let processedCount = 0;
+
+    for (const pr of enrichedPRs) {
+      const details = allPRDetails[pr.number];
+      const projectKeys = config.jira?.project_keys ?? [];
+
+      for (const commit of details.commits) {
+        const isDevCommit =
+          developerEmails.length === 0 ||
+          (!!commit.commit?.author?.email &&
+            developerEmails.includes(commit.commit.author.email.toLowerCase()));
+        if (!isDevCommit) continue;
+
+        if (processedShas.has(commit.sha)) continue;
+
+        let commitDetail = details.commit_details?.[commit.sha];
+        if (!commitDetail) {
+          // Fetch on-the-fly (old cache fallback)
+          const { data } = await octokit.repos.getCommit({
+            owner: config.github.repo_owner,
+            repo: config.github.repo_name,
+            ref: commit.sha,
+          });
+          commitDetail = {
+            files: data.files ?? [],
+            lines_added: (data.files ?? []).reduce((sum, f) => sum + f.additions, 0),
+            lines_removed: (data.files ?? []).reduce((sum, f) => sum + f.deletions, 0),
+          };
+        }
+
+        const ticket_ids = mergeTicketIds(
+          extractTicketIds(commit.commit.message, projectKeys),
+          extractJiraTicketLinks(commit.commit.message),
+        );
+        const modules_touched = extractModules(
+          commitDetail.files.map((f) => f.filename),
+        );
+
+        const commitData = {
+          sha: commit.sha,
+          committed_at: commit.commit.author.date,
+          message: commit.commit.message,
+          files_changed: commitDetail.files.map((f) => f.filename),
+          modules_touched,
+          lines_added: commitDetail.lines_added,
+          lines_removed: commitDetail.lines_removed,
+        };
+
+        const prAiDescription = prContextMap[pr.number];
+        const prContext = {
+          pr_number: pr.number,
+          pr_title: pr.title,
+          pr_ai_description: prAiDescription,
+        };
+
         try {
-          const ai_description = await summarizeCommitGroup(
-            group,
+          const ai_description = await summarizeCommit(
+            commitData,
+            prContext,
             selectedProvider,
+            projectKeys,
           );
 
           const record = {
-            type: "commit_group",
-            date: group.date,
-            commits: group.commits,
-            files_changed: group.files_changed.length,
-            modules_touched: group.modules_touched,
+            sha: commit.sha,
+            committed_at: commitData.committed_at,
+            message: commitData.message,
+            files_changed: commitData.files_changed,
+            modules_touched,
+            lines_added: commitDetail.lines_added,
+            lines_removed: commitDetail.lines_removed,
+            ticket_ids,
             ai_description,
-            ticket_ids: group.ticket_ids || [],
+            pr_context: {
+              pr_number: pr.number,
+              pr_title: pr.title,
+              pr_ai_description: prAiDescription,
+            },
           };
 
           await appendToCache(CACHE_PATH, record);
           processedCount++;
           process.stdout.write(
-            `\rSummarizing PRs and commit groups... ${processedCount}/${totalItems}`,
+            `\rSummarizing commits... ${processedCount}/${totalCommits}`,
           );
         } catch (error) {
           console.warn(
-            `\nWarning: Failed to process commit group: ${error.message}`,
+            `\nWarning: Failed to process commit ${commit.sha}: ${error.message}`,
           );
-          continue;
         }
       }
     }
 
-    // Step G — Consolidated cache write & summary
+    // Step G — Per-commit summaries for orphan commits
+    for (const commit of directCommitCandidates) {
+      if (processedShas.has(commit.sha)) continue;
+
+      const projectKeys = config.jira?.project_keys ?? [];
+      const ticket_ids = mergeTicketIds(
+        extractTicketIds(commit.message, projectKeys),
+        extractJiraTicketLinks(commit.message),
+      );
+
+      const commitData = {
+        sha: commit.sha,
+        committed_at: commit.date,
+        message: commit.message,
+        files_changed: commit.files_changed ?? [],
+        modules_touched: commit.modules_touched ?? [],
+        lines_added: commit.lines_added ?? 0,
+        lines_removed: commit.lines_removed ?? 0,
+      };
+
+      try {
+        const ai_description = await summarizeOrphanCommit(
+          commitData,
+          selectedProvider,
+          projectKeys,
+        );
+
+        const record = {
+          sha: commit.sha,
+          committed_at: commit.date,
+          message: commit.message,
+          files_changed: commit.files_changed ?? [],
+          modules_touched: commit.modules_touched ?? [],
+          lines_added: commit.lines_added ?? 0,
+          lines_removed: commit.lines_removed ?? 0,
+          ticket_ids,
+          ai_description,
+          pr_context: null,
+        };
+
+        await appendToCache(CACHE_PATH, record);
+        processedCount++;
+        process.stdout.write(
+          `\rSummarizing commits... ${processedCount}/${totalCommits}`,
+        );
+      } catch (error) {
+        console.warn(
+          `\nWarning: Failed to process commit ${commit.sha}: ${error.message}`,
+        );
+      }
+    }
+
+    // Step H — Consolidated cache write & summary
     console.log("");
 
-    const allItems = await readCache(CACHE_PATH);
+    const allItems = (await readCache(CACHE_PATH)).filter(
+      (i) => i.sha && !i.type,
+    );
     await writeConsolidatedCache(CACHE_PATH, allItems);
 
-    const prCount = allItems.filter((i) => i.type === "pr").length;
-    const groupCount = allItems.filter((i) => i.type === "commit_group").length;
-
-    if (prCount === 0 && groupCount === 0) {
+    if (allItems.length === 0) {
       console.log("No GitHub data found. Check config.");
     } else {
       console.log(
-        `Processed ${prCount} PRs and ${groupCount} commit groups (from ${directCommitCandidates.length} direct commits). Output: cache/github-summary.json`,
+        `Processed ${allItems.length} commits (${totalPRCommits} from PRs, ${directCommitCandidates.length} orphan). Output: cache/github-summary.json`,
       );
     }
   } catch (error) {
