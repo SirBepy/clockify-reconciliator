@@ -9,18 +9,18 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { parseArgs } from "util";
 import { Octokit } from "@octokit/rest";
-import { loadConfig } from "./src/shared/config.js";
+import { loadConfig } from "../shared/config.js";
 import {
   initCache,
   appendToCache,
   clearCache,
   writeConsolidatedCache,
   readCache,
-} from "./src/shared/cache.js";
-import { extractModules } from "./src/shared/module-extractor.js";
+} from "../shared/cache.js";
+import { extractModules } from "../shared/module-extractor.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = __dirname;
+const projectRoot = path.resolve(__dirname, "../..");
 
 const CACHE_PATH = path.resolve(projectRoot, "cache", "direct-commits.ndjson");
 

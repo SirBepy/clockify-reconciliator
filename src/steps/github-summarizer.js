@@ -10,24 +10,24 @@ import { fileURLToPath } from "url";
 import { parseArgs } from "util";
 import readline from "readline";
 import { Octokit } from "@octokit/rest";
-import { loadConfig } from "./src/shared/config.js";
+import { loadConfig } from "../shared/config.js";
 import {
   listProviders,
   promptProviderSelection,
   executeProvider,
-} from "./src/shared/cli-provider.js";
+} from "../shared/cli-provider.js";
 import {
   initCache,
   appendToCache,
   writeConsolidatedCache,
   clearCache,
   readCache,
-} from "./src/shared/cache.js";
-import { extractTicketIds } from "./src/shared/ticket-extractor.js";
-import { extractModules } from "./src/shared/module-extractor.js";
+} from "../shared/cache.js";
+import { extractTicketIds } from "../shared/ticket-extractor.js";
+import { extractModules } from "../shared/module-extractor.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = __dirname;
+const projectRoot = path.resolve(__dirname, "../..");
 
 const CACHE_PATH = path.resolve(projectRoot, "cache", "github-summary.ndjson");
 const DIRECT_COMMITS_PATH = path.resolve(

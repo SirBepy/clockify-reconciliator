@@ -7,7 +7,8 @@ import { fileURLToPath } from "url";
 import readline from "readline";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const STATE_FILE = path.join(__dirname, "cache", "run-state.json");
+const projectRoot = path.resolve(__dirname, "../..");
+const STATE_FILE = path.join(projectRoot, "cache", "run-state.json");
 
 const STEPS = [
   { name: "clockify-preprocessor.js", label: "Clean Clockify CSV" },

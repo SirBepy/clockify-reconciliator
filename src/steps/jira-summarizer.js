@@ -9,22 +9,22 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { parseArgs } from "util";
 import readline from "readline";
-import { loadConfig } from "./src/shared/config.js";
+import { loadConfig } from "../shared/config.js";
 import {
   listProviders,
   promptProviderSelection,
   executeProvider,
-} from "./src/shared/cli-provider.js";
+} from "../shared/cli-provider.js";
 import {
   initCache,
   appendToCache,
   writeConsolidatedCache,
   clearCache,
   readCache,
-} from "./src/shared/cache.js";
+} from "../shared/cache.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = __dirname;
+const projectRoot = path.resolve(__dirname, "../..");
 
 const CACHE_PATH = path.resolve(projectRoot, "cache", "jira-summary.ndjson");
 const JIRA_PAGE_SIZE = 50;

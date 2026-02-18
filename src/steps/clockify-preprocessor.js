@@ -12,7 +12,7 @@ import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = __dirname;
+const projectRoot = path.resolve(__dirname, "../..");
 
 const REQUIRED_COLUMNS = [
   "Description",

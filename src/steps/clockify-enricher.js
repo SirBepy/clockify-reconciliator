@@ -13,15 +13,15 @@ import { randomUUID } from "crypto";
 import { parse as csvParse } from "csv-parse/sync";
 import { stringify as csvStringify } from "csv-stringify/sync";
 
-import { loadConfig } from "./src/shared/config.js";
+import { loadConfig } from "../shared/config.js";
 import {
   initCache,
   appendToCache,
   readCache,
   writeConsolidatedCache,
   clearCache,
-} from "./src/shared/cache.js";
-import { extractTicketIds } from "./src/shared/ticket-extractor.js";
+} from "../shared/cache.js";
+import { extractTicketIds } from "../shared/ticket-extractor.js";
 import {
   parseClockifyDate,
   parseISOToLocal,
@@ -29,10 +29,10 @@ import {
   splitTimeWindow,
   formatClockifyDate,
   formatClockifyTime,
-} from "./src/shared/date-utils.js";
+} from "../shared/date-utils.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const projectRoot = __dirname;
+const projectRoot = path.resolve(__dirname, "../..");
 
 const CLOCKIFY_CLEANED_PATH = path.resolve(
   projectRoot,
@@ -313,7 +313,7 @@ import {
   listProviders,
   promptProviderSelection,
   executeProvider,
-} from "./src/shared/cli-provider.js";
+} from "../shared/cli-provider.js";
 const providers = listProviders();
 if (providers.length === 0) {
   console.error(
