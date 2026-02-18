@@ -18,9 +18,7 @@ Entries are enriched with detailed context while preserving the original total h
 
 - **Jira API Token**: generate at [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens). Used with Basic Auth (`user_email:api_token`).
 
-- **AI Provider API Keys** (set as environment variables before running AI tools):
-  - `ANTHROPIC_API_KEY` — for `claude-opus`, `claude-sonnet`, `claude-haiku` providers
-  - `GOOGLE_API_KEY` — for `gemini-pro`, `gemini-flash` providers
+- **AI Provider API Keys**: set in `config.json` under the `ai` section (`ai.anthropic_api_key` for Claude models, `ai.gemini_api_key` for Gemini models). See Setup step 3.
 
 ---
 
@@ -28,14 +26,8 @@ Entries are enriched with detailed context while preserving the original total h
 
 1. Clone the repository.
 2. Run `npm install`.
-3. Copy `config.example.json` to `config.json` and fill in all credentials and date ranges.
+3. Copy `config.example.json` to `config.json` and fill in all credentials and date ranges. API keys for AI providers go in the `ai` section (`ai.anthropic_api_key` for Claude, `ai.gemini_api_key` for Gemini).
 4. Export a **Detailed Report** from Clockify (not a summary report) as CSV and place it in `input/` (e.g., `input/clockify-export.csv`). The CSV must contain columns: `Description`, `Start Date`, `Start Time`, `End Date`, `End Time`, `Duration (h)`.
-5. Export the required API key environment variable(s) for your chosen AI provider:
-   ```bash
-   export ANTHROPIC_API_KEY="..."  # for Claude models
-   # or
-   export GOOGLE_API_KEY="..."     # for Gemini models
-   ```
 
 The `input/`, `output/`, and `cache/` directories are pre-created in the repo (via `.gitkeep` files) and will be used by the tools at runtime. The tools also create them automatically if they are missing.
 
@@ -75,14 +67,16 @@ Steps 3–5 prompt for AI provider selection interactively.
 
 The tool includes five providers in `cli-providers/`:
 
-- **Claude models** (require `ANTHROPIC_API_KEY`):
+- **Claude models** (configured via `config.json` `ai.anthropic_api_key`):
   - `claude-opus` — most capable, higher cost
   - `claude-sonnet` — balanced performance/cost
   - `claude-haiku` — fastest, lowest cost
 
-- **Gemini models** (require `GOOGLE_API_KEY`):
+- **Gemini models** (configured via `config.json` `ai.gemini_api_key`):
   - `gemini-pro` — most capable, higher cost
   - `gemini-flash` — fast, lower cost
+
+**Note:** Environment variables (`ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`) still work as overrides if set — they take precedence over `config.json` values.
 
 ### Adding a Custom Provider
 
@@ -160,8 +154,8 @@ main();
 | `GitHub rate limit exceeded`                     | Too many API calls                                         | Wait ~1 hour, then re-run. If PR data was already fetched, choose `c` to skip re-fetching.       |
 | `GitHub authentication failed`                   | Bad PAT                                                    | Check `github.personal_access_token` in `config.json`; verify PAT scopes (`repo` + `user:email`) |
 | `Jira API error: 401`                            | Bad Jira credentials                                       | Verify `jira.user_email` and `jira.api_token` in `config.json`                                   |
-| `ANTHROPIC_API_KEY environment variable not set` | Missing env var                                            | Export the key: `export ANTHROPIC_API_KEY=...` before running                                    |
-| `GOOGLE_API_KEY environment variable not set`    | Missing env var                                            | Export the key: `export GOOGLE_API_KEY=...` before running                                       |
+| `ANTHROPIC_API_KEY environment variable not set` | Missing API key                                            | Set `ai.anthropic_api_key` in `config.json`                                                      |
+| `GOOGLE_API_KEY environment variable not set`    | Missing API key                                            | Set `ai.gemini_api_key` in `config.json`                                                         |
 | `No AI providers found in cli-providers/`        | `cli-providers/` empty or missing `.js` files              | Ensure provider scripts exist and are readable                                                   |
 | Date range mismatch prompt                       | Clockify CSV covers dates outside GitHub/Jira config range | Update `date_from`/`date_to` in `config.json` and re-run summarizers                             |
 | `Found partial cache. Resume or start fresh?`    | Tool was interrupted mid-run                               | Enter `r` to resume from the last successful item                                                |
