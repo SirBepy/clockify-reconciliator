@@ -55,5 +55,15 @@
       "output_mirrored": "Output CSV matching input schema — safest for legal/client submission",
       "output_standardized": "Output CSV with extra columns AI_Confidence, AI_Notes, Split_Group_ID — use for manual review"
     }
+  },
+  "enrichment": {
+    "min_words": 10,
+    "max_words": 40,
+    "minimum_hours_to_reconciliate": 0,
+    "__notes": {
+      "min_words": "Optional. Minimum word count required for enriched_description. Omit to skip lower-bound validation.",
+      "max_words": "Optional. Maximum word count allowed for enriched_description. Omit to skip upper-bound validation.",
+      "minimum_hours_to_reconciliate": "Entries with duration strictly below this threshold are passed through without AI enrichment. Set to 0 (default) to enrich all entries."
+    }
   }
 }

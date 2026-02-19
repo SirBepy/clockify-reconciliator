@@ -44,7 +44,10 @@ const GITHUB_SUMMARY_PATH = path.resolve(
 );
 const JIRA_SUMMARY_PATH = path.resolve(projectRoot, "cache/jira-summary.json");
 const PATTERNS_PATH = path.resolve(projectRoot, "cache/patterns.json");
-const DECOMPOSITION_CACHE_PATH = path.resolve(projectRoot, "cache/decomposition-cache.json");
+const DECOMPOSITION_CACHE_PATH = path.resolve(
+  projectRoot,
+  "cache/decomposition-cache.json",
+);
 const ENRICHMENT_PROGRESS_PATH = path.resolve(
   projectRoot,
   "cache/enrichment-progress.ndjson",
@@ -63,6 +66,7 @@ const OUTPUT_STANDARDIZED_PATH = path.resolve(
 );
 const DIFF_PATH = path.resolve(projectRoot, "output/diff.txt");
 const MAX_BATCH_SIZE = 10;
+const MAX_PROMPT_CHARS = 200_000; // ~50K tokens; batches exceeding this are split proactively
 
 // ============================================================================
 // Section 2 — Helper Functions (before IIFE)
@@ -342,10 +346,16 @@ Accept recommended changes and restart the script? (y/n) `);
 
     let ans;
     if (parsedArgs.values.yes) {
-      console.log("Accept recommended changes and restart the script? (y/n) y (auto)");
+      console.log(
+        "Accept recommended changes and restart the script? (y/n) y (auto)",
+      );
       ans = "y";
     } else {
-      ans = (await prompt("Accept recommended changes and restart the script? (y/n) ")).toLowerCase();
+      ans = (
+        await prompt(
+          "Accept recommended changes and restart the script? (y/n) ",
+        )
+      ).toLowerCase();
     }
     if (ans === "y") {
       // Update config file
@@ -385,7 +395,10 @@ if (providers.length === 0) {
   );
   process.exit(1);
 }
-const selectedProvider = await promptProviderSelection(providers, parsedArgs.values.ai ?? null);
+const selectedProvider = await promptProviderSelection(
+  providers,
+  parsedArgs.values.ai ?? null,
+);
 // Accumulate tokens used from provider metadata across all calls
 let totalActualTokensAccum = 0;
 
@@ -411,7 +424,8 @@ function extractTokensFromMetadata(metadata) {
 
 if (parsedArgs.values["force-refresh"]) {
   if (fs.existsSync(PATTERNS_PATH)) fs.unlinkSync(PATTERNS_PATH);
-  if (fs.existsSync(DECOMPOSITION_CACHE_PATH)) fs.unlinkSync(DECOMPOSITION_CACHE_PATH);
+  if (fs.existsSync(DECOMPOSITION_CACHE_PATH))
+    fs.unlinkSync(DECOMPOSITION_CACHE_PATH);
   if (fs.existsSync(ENRICHMENT_PROGRESS_PATH))
     fs.unlinkSync(ENRICHMENT_PROGRESS_PATH);
   const alt = ENRICHMENT_PROGRESS_PATH.replace(".ndjson", ".json");
@@ -434,7 +448,9 @@ if (!fs.existsSync(PATTERNS_PATH)) {
 
   const promptText = `Detect pattern groups from the following Clockify descriptions. Return a JSON object where each key is a group id and value is { variants: [..], suggested_standard: string, count: number }:\n\n${descriptions.join("\n")}`;
 
-  console.log(`Calling AI to detect patterns from ${descriptions.length} unique descriptions...`);
+  console.log(
+    `Calling AI to detect patterns from ${descriptions.length} unique descriptions...`,
+  );
   const result = await executeProvider(selectedProvider, promptText);
   const { response: resultResponse, metadata: resultMeta } = result || {};
   totalActualTokensAccum += extractTokensFromMetadata(resultMeta);
@@ -582,7 +598,9 @@ if (unmatched.length > 0) {
 
   const semanticPrompt = `For these unmatched Clockify entries, suggest possible GitHub commit or Jira ticket matches.\n\nEntries:\n${entriesList}\n\nGitHub items:\n${githubList}\n\nJira Tickets:\n${jiraList}\n\nReturn a JSON array where each element is { rowIndex: <number>, github_match: <"COMMIT@sha=<8-char-sha>"|null>, jira_match: <ticket_id|null>, confidence: "high"|"medium"|"low" }`;
 
-  console.log(`Running semantic AI matching for ${unmatched.length} unmatched entries...`);
+  console.log(
+    `Running semantic AI matching for ${unmatched.length} unmatched entries...`,
+  );
   try {
     const resp = await executeProvider(selectedProvider, semanticPrompt);
     const { response: respResponse, metadata: respMeta } = resp || {};
@@ -601,7 +619,9 @@ if (unmatched.length > 0) {
               typeof res.github_match === "string" &&
               res.github_match.startsWith("COMMIT@sha=")
             ) {
-              const shaPrefix = res.github_match.substring("COMMIT@sha=".length);
+              const shaPrefix = res.github_match.substring(
+                "COMMIT@sha=".length,
+              );
               const commit = githubData.find((x) =>
                 x.sha?.startsWith(shaPrefix),
               );
@@ -656,7 +676,9 @@ for (const [k, entries] of groups.entries()) {
 let decompositionCache = {};
 if (fs.existsSync(DECOMPOSITION_CACHE_PATH)) {
   try {
-    decompositionCache = JSON.parse(fs.readFileSync(DECOMPOSITION_CACHE_PATH, "utf-8"));
+    decompositionCache = JSON.parse(
+      fs.readFileSync(DECOMPOSITION_CACHE_PATH, "utf-8"),
+    );
   } catch {
     decompositionCache = {};
   }
@@ -683,9 +705,7 @@ for (const [key, entries] of groups.entries()) {
   const gh = Array.from(
     new Set(
       entries.flatMap((e) =>
-        e.groupGithubMatches
-          ? e.groupGithubMatches.map((g) => g.sha)
-          : [],
+        e.groupGithubMatches ? e.groupGithubMatches.map((g) => g.sha) : [],
       ),
     ),
   );
@@ -693,7 +713,9 @@ for (const [key, entries] of groups.entries()) {
   let parsedSubTasks = null;
 
   if (decompositionCache[key]) {
-    console.log(`  Decomposing group "${key}" (${entries.length} entr${entries.length === 1 ? "y" : "ies"}, ${totalHours.toFixed(2)}h)... [cached]`);
+    console.log(
+      `  Decomposing group "${key}" (${entries.length} entr${entries.length === 1 ? "y" : "ies"}, ${totalHours.toFixed(2)}h)... [cached]`,
+    );
     parsedSubTasks = decompositionCache[key];
   } else {
     // Build a detailed decomposition prompt including required context and rules
@@ -719,7 +741,10 @@ for (const [key, entries] of groups.entries()) {
     // Include Jira and GitHub context
     if (jiraTickets.length > 0)
       promptParts.push(`Jira tickets and metadata: ${jiraTickets.join(", ")}`);
-    if (gh.length > 0) promptParts.push(`GitHub commits: ${gh.map((s) => (s || "").slice(0, 8)).join(", ")}`);
+    if (gh.length > 0)
+      promptParts.push(
+        `GitHub commits: ${gh.map((s) => (s || "").slice(0, 8)).join(", ")}`,
+      );
 
     // Provide per-commit/jira detailed context
     promptParts.push("Detailed GitHub/Jira context:");
@@ -761,20 +786,32 @@ for (const [key, entries] of groups.entries()) {
     }
 
     // Compute deterministic weighted hour targets for multi-commit groups
-    const allGithubMatches = entries.flatMap((e) => e.groupGithubMatches || e.githubMatches || []);
-    const allJiraMatches = entries.flatMap((e) => e.groupJiraMatches || e.jiraMatches || []);
+    const allGithubMatches = entries.flatMap(
+      (e) => e.groupGithubMatches || e.githubMatches || [],
+    );
+    const allJiraMatches = entries.flatMap(
+      (e) => e.groupJiraMatches || e.jiraMatches || [],
+    );
     const uniqueGithubMatches = Array.from(
-      new Map(allGithubMatches.filter((g) => g.sha).map((g) => [g.sha, g])).values(),
+      new Map(
+        allGithubMatches.filter((g) => g.sha).map((g) => [g.sha, g]),
+      ).values(),
     );
 
     if (uniqueGithubMatches.length > 1) {
-      const commitWeights = computeCommitWeights(uniqueGithubMatches, allJiraMatches, totalHours);
+      const commitWeights = computeCommitWeights(
+        uniqueGithubMatches,
+        allJiraMatches,
+        totalHours,
+      );
       if (commitWeights.length > 0) {
         promptParts.push(
           "Pre-computed weighted hour targets per commit (story points primary, lines changed tiebreaker). Allocate subtasks to match these targets as closely as possible:",
         );
         for (const cw of commitWeights) {
-          promptParts.push(`  - Commit ${(cw.sha || "").slice(0, 8)}: ${cw.hours.toFixed(2)}h`);
+          promptParts.push(
+            `  - Commit ${(cw.sha || "").slice(0, 8)}: ${cw.hours.toFixed(2)}h`,
+          );
         }
       }
     }
@@ -786,7 +823,9 @@ for (const [key, entries] of groups.entries()) {
       "Return a JSON array of subtask objects: { description, hours, ticket_id (optional), confidence }.",
     );
 
-    console.log(`  Decomposing group "${key}" (${entries.length} entr${entries.length === 1 ? "y" : "ies"}, ${totalHours.toFixed(2)}h)...`);
+    console.log(
+      `  Decomposing group "${key}" (${entries.length} entr${entries.length === 1 ? "y" : "ies"}, ${totalHours.toFixed(2)}h)...`,
+    );
     try {
       const resp = await executeProvider(
         selectedProvider,
@@ -796,7 +835,11 @@ for (const [key, entries] of groups.entries()) {
       totalActualTokensAccum += extractTokensFromMetadata(respMeta);
       const cleaned = stripMarkdownFences(respResponse);
       const parsed = safeParseJSON(cleaned, null);
-      if (Array.isArray(parsed)) {
+      if (!Array.isArray(parsed)) {
+        console.warn(
+          `  Warning: Decomposition for "${key}" returned non-array response, skipping cache.`,
+        );
+      } else {
         // validate sum
         let sum = parsed.reduce((s, t) => s + (t.hours || 0), 0);
         if (Math.abs(sum - totalHours) > 0.001) {
@@ -807,7 +850,11 @@ for (const [key, entries] of groups.entries()) {
         }
         parsedSubTasks = parsed;
         decompositionCache[key] = parsedSubTasks;
-        fs.writeFileSync(DECOMPOSITION_CACHE_PATH, JSON.stringify(decompositionCache, null, 2), "utf-8");
+        fs.writeFileSync(
+          DECOMPOSITION_CACHE_PATH,
+          JSON.stringify(decompositionCache, null, 2),
+          "utf-8",
+        );
       }
     } catch (err) {
       console.warn(
@@ -917,6 +964,14 @@ for (const m of matchResults) {
   }
 }
 
+// Apply minimum_hours_to_reconciliate threshold
+const minHoursThreshold = config.enrichment?.minimum_hours_to_reconciliate ?? 0;
+for (const wi of workItems) {
+  if (wi.durationHours < minHoursThreshold) {
+    wi.skipEnrichment = true;
+  }
+}
+
 // ============================================================================
 // Section 14 — Token Estimation
 // ============================================================================
@@ -937,16 +992,21 @@ const coefficient =
   coeffRuns.length > 0
     ? coeffRuns.reduce((s, x) => s + x, 0) / coeffRuns.length
     : 1.0;
-const baseEstimate = totalOutputRows * 800;
+
+const baseEstimate = totalOutputRows * 1200;
 const adjustedEstimate = Math.round(baseEstimate * coefficient);
 
 let tokenAns;
 if (parsedArgs.values.yes) {
-  console.log(`Estimated tokens: ~${adjustedEstimate.toLocaleString()}. Continue? (y/n) y (auto)`);
+  console.log(
+    `Estimated tokens: ~${adjustedEstimate.toLocaleString()}. Continue? (y/n) y (auto)`,
+  );
   tokenAns = "y";
 } else {
   tokenAns = (
-    await prompt(`Estimated tokens: ~${adjustedEstimate.toLocaleString()}. Continue? (y/n) `)
+    await prompt(
+      `Estimated tokens: ~${adjustedEstimate.toLocaleString()}. Continue? (y/n) `,
+    )
   ).toLowerCase();
 }
 if (tokenAns !== "y") process.exit(1);
@@ -954,7 +1014,6 @@ if (tokenAns !== "y") process.exit(1);
 // ============================================================================
 // Section 15 — Resume Detection for Enrichment
 // ============================================================================
-
 const progressItems = await initCache(ENRICHMENT_PROGRESS_PATH);
 // Track processed work items by workItemKey (new format)
 const processedKeys = new Set(
@@ -972,15 +1031,17 @@ for (const item of progressItems) {
 }
 
 // ============================================================================
-// Section 16 — Smart Batching
+// Section 16 — Batching and Enrichment Queue
 // ============================================================================
 
-// Build batches keyed by primary ticket or date for unassigned (work items grouping)
+// Build batches: group by ticket ID or date, respect MAX_BATCH_SIZE
 const batches = [];
 const byKey = new Map();
 for (const wi of workItems) {
-  // Skip if already processed (check workItemKey)
+  // Skip if already processed
   if (processedKeys.has(wi.workItemKey)) continue;
+  // Skip items below the minimum hours threshold
+  if (wi.skipEnrichment) continue;
 
   const key =
     wi.ticketId ||
@@ -990,8 +1051,7 @@ for (const wi of workItems) {
   if (!byKey.has(key)) byKey.set(key, []);
   byKey.get(key).push(wi);
 }
-
-for (const [k, arr] of byKey.entries()) {
+for (const arr of byKey.values()) {
   if (arr.length <= MAX_BATCH_SIZE) batches.push(arr);
   else {
     for (let i = 0; i < arr.length; i += MAX_BATCH_SIZE)
@@ -1006,6 +1066,16 @@ for (const [k, arr] of byKey.entries()) {
 let processed = 0;
 const total = batches.reduce((s, b) => s + b.length, 0);
 const batchQueue = [...batches];
+const minWords = config.enrichment?.min_words ?? null;
+const maxWords = config.enrichment?.max_words ?? null;
+let wordConstraintLine = "";
+if (minWords !== null && maxWords !== null) {
+  wordConstraintLine = `Each enriched_description must be between ${minWords} and ${maxWords} words.`;
+} else if (minWords !== null) {
+  wordConstraintLine = `Each enriched_description must be at least ${minWords} words.`;
+} else if (maxWords !== null) {
+  wordConstraintLine = `Each enriched_description must be at most ${maxWords} words.`;
+}
 while (batchQueue.length > 0) {
   const batch = batchQueue.shift();
   const promptLines = [];
@@ -1015,6 +1085,7 @@ while (batchQueue.length > 0) {
   promptLines.push(
     "Return ONLY valid JSON: an array of objects with { workItemKey: <string>, enriched_description: string, confidence: 'high'|'medium'|'low', notes: string }.",
   );
+  if (wordConstraintLine) promptLines.push(wordConstraintLine);
   promptLines.push("");
   for (const wi of batch) {
     // Build GitHub context with commit-centric format
@@ -1031,7 +1102,9 @@ while (batchQueue.length > 0) {
         const msg = (g.message || "").replace(/\n/g, " ").slice(0, 200);
         let entry = `Commit ${sha8}: ${msg}\nDate: ${date10} | Files: ${filesCount} | Modules: ${modules} | Lines: +${g.lines_added || 0}/-${g.lines_removed || 0}`;
         if (g.pr_context) {
-          const prDesc = (g.pr_context.pr_ai_description || "").replace(/\n/g, " ").slice(0, 400);
+          const prDesc = (g.pr_context.pr_ai_description || "")
+            .replace(/\n/g, " ")
+            .slice(0, 400);
           entry += `\nPR context: Part of PR #${g.pr_context.pr_number} "${(g.pr_context.pr_title || "").replace(/\n/g, " ")}" — ${prDesc}`;
         }
         return entry;
@@ -1065,11 +1138,24 @@ while (batchQueue.length > 0) {
     promptLines.push("---");
   }
 
-  process.stdout.write(`\rEnriching entries... ${processed}/${total} [calling AI for batch of ${batch.length}...]`);
+  const promptText = promptLines.join("\n");
+
+  if (promptText.length > MAX_PROMPT_CHARS && batch.length > 1) {
+    const mid = Math.ceil(batch.length / 2);
+    process.stdout.write(
+      `\n  Batch prompt too large (~${Math.round(promptText.length / 4).toLocaleString()} est. tokens), splitting ${batch.length} → ${mid} + ${batch.length - mid} proactively...\n`,
+    );
+    batchQueue.unshift(batch.slice(0, mid), batch.slice(mid));
+    continue;
+  }
+
+  process.stdout.write(
+    `\rEnriching entries... ${processed}/${total} [calling AI for batch of ${batch.length}...]`,
+  );
   try {
     const resp = await executeProvider(
       selectedProvider,
-      promptLines.join("\n"),
+      promptText,
     );
     const { response: respResponse, metadata: respMeta } = resp || {};
     totalActualTokensAccum += extractTokensFromMetadata(respMeta);
@@ -1082,17 +1168,169 @@ while (batchQueue.length > 0) {
       const workItemKey = r.workItemKey;
       const target = batch.find((bi) => bi.workItemKey === workItemKey);
       if (!target) continue;
+      // Resolve enriched description (fallbacks)
+      let enriched =
+        r.enriched_description ||
+        r.description ||
+        target.draftDescription ||
+        "";
+
+      // Word count validation and single-item retry if needed
+      const count =
+        enriched.trim() === ""
+          ? 0
+          : enriched.trim().split(/\s+/).filter(Boolean).length;
+      let finalEnriched = enriched;
+      let notePrefix = "";
+      let retryConfidence = null;
+      let retryNotes = null;
+
+      const outOfRange =
+        (minWords !== null && count < minWords) ||
+        (maxWords !== null && count > maxWords);
+
+      if (outOfRange) {
+        // Build single-item retry prompt
+        const retryPromptLines = [];
+        retryPromptLines.push(
+          "Enrich the following Clockify entries. For each entry, produce a concise, professional, past-tense, defensible description of work performed, suitable for time-tracking records. Avoid referencing AI. Be specific and reference PRs, files, or Jira tickets when applicable.",
+        );
+        retryPromptLines.push(
+          "Return ONLY valid JSON: an array of objects with { workItemKey: <string>, enriched_description: string, confidence: 'high'|'medium'|'low', notes: string }.",
+        );
+        retryPromptLines.push(
+          `The previous response had ${count} words. Rewrite enriched_description to be ${
+            minWords !== null && maxWords !== null
+              ? `between ${minWords} and ${maxWords} words.`
+              : minWords !== null
+                ? `at least ${minWords} words.`
+                : `at most ${maxWords} words.`
+          }`,
+        );
+
+        // Rebuild context for the single work item
+        const wi = target;
+        const ghEntries = wi.githubMatches
+          .map((g) => {
+            const sha8 = (g.sha || "").slice(0, 8);
+            const date10 = (g.committed_at || "").slice(0, 10);
+            const modules = Array.isArray(g.modules_touched)
+              ? g.modules_touched.join(", ")
+              : "";
+            const filesCount = Array.isArray(g.files_changed)
+              ? g.files_changed.length
+              : g.files_changed || 0;
+            const msg = (g.message || "").replace(/\n/g, " ").slice(0, 200);
+            let entry = `Commit ${sha8}: ${msg}\nDate: ${date10} | Files: ${filesCount} | Modules: ${modules} | Lines: +${g.lines_added || 0}/-${g.lines_removed || 0}`;
+            if (g.pr_context) {
+              const prDesc = (g.pr_context.pr_ai_description || "")
+                .replace(/\n/g, " ")
+                .slice(0, 400);
+              entry += `\nPR context: Part of PR #${g.pr_context.pr_number} "${(g.pr_context.pr_title || "").replace(/\n/g, " ")}" — ${prDesc}`;
+            }
+            return entry;
+          })
+          .join("\n---\n");
+
+        const jiraEntries = wi.jiraMatches
+          .map(
+            (j) =>
+              `${j.ticket_id}: title="${(j.title || "").replace(/\n/g, " ")}", story_points=${j.story_points || j.story_points_count || 0}, back_to_dev=${j.back_to_development_count || 0}, summary="${(j.description_summary || "").replace(/\n/g, " ")}"`,
+          )
+          .join(" || ");
+
+        retryPromptLines.push(`WORK_ITEM_KEY: ${wi.workItemKey}`);
+        retryPromptLines.push(
+          `Date: ${wi.clockifyDate ? formatDateFns(wi.clockifyDate, "yyyy-MM-dd") : "?"}`,
+        );
+        retryPromptLines.push(`Duration: ${hoursToHMM(wi.durationHours)}`);
+        retryPromptLines.push(
+          `Original Clockify description: "${(wi.clockifyEntry?.Description || "").replace(/\n/g, " ")}"`,
+        );
+        if (wi.subIndex >= 0 && wi.splitGroupId) {
+          retryPromptLines.push(
+            `AI decomposed task: "${(wi.draftDescription || "").replace(/\n/g, " ")}"`,
+          );
+        }
+        retryPromptLines.push(`Matched GitHub: ${ghEntries || "None"}`);
+        retryPromptLines.push(`Matched Jira: ${jiraEntries || "None"}`);
+
+        // Call provider for retry
+        try {
+          const retryResp = await executeProvider(
+            selectedProvider,
+            retryPromptLines.join("\n"),
+          );
+          const { response: retryResponse, metadata: retryMeta } =
+            retryResp || {};
+          totalActualTokensAccum += extractTokensFromMetadata(retryMeta);
+          const cleanedRetry = stripMarkdownFences(retryResponse);
+          const parsedRetry = safeParseJSON(cleanedRetry, null);
+          if (Array.isArray(parsedRetry)) {
+            const rr = parsedRetry.find(
+              (x) => x.workItemKey === wi.workItemKey,
+            );
+            if (rr && rr.enriched_description) {
+              const newDesc = rr.enriched_description;
+              retryConfidence = rr.confidence || null;
+              retryNotes = rr.notes || null;
+              const newCount =
+                newDesc.trim() === ""
+                  ? 0
+                  : newDesc.trim().split(/\s+/).filter(Boolean).length;
+              const inRange =
+                (minWords === null || newCount >= minWords) &&
+                (maxWords === null || newCount <= maxWords);
+              if (inRange) {
+                finalEnriched = newDesc;
+              } else {
+                finalEnriched = newDesc;
+                notePrefix = `word count out of range (${newCount} words, target: ${
+                  minWords !== null && maxWords !== null
+                    ? `${minWords}–${maxWords}`
+                    : minWords !== null
+                      ? `>=${minWords}`
+                      : `<=${maxWords}`
+                }); used retry attempt as-is`;
+              }
+            } else {
+              notePrefix = `word count out of range (${count} words, target: ${
+                minWords !== null && maxWords !== null
+                  ? `${minWords}–${maxWords}`
+                  : minWords !== null
+                    ? `>=${minWords}`
+                    : `<=${maxWords}`
+              }); retry failed to provide valid JSON; used as-is`;
+            }
+          } else {
+            notePrefix = `word count out of range (${count} words, target: ${
+              minWords !== null && maxWords !== null
+                ? `${minWords}–${maxWords}`
+                : minWords !== null
+                  ? `>=${minWords}`
+                  : `<=${maxWords}`
+            }); retry parse failed; used as-is`;
+          }
+        } catch (err) {
+          notePrefix = `word count out of range (${count} words, target: ${
+            minWords !== null && maxWords !== null
+              ? `${minWords}–${maxWords}`
+              : minWords !== null
+                ? `>=${minWords}`
+                : `<=${maxWords}`
+          }); retry error; used as-is`;
+        }
+      }
+
       const record = {
         workItemKey: target.workItemKey,
         rowIndex: target.rowIndex,
         subIndex: target.subIndex,
-        enriched_description:
-          r.enriched_description ||
-          r.description ||
-          target.draftDescription ||
-          "",
-        ai_confidence: r.confidence || "low",
-        ai_notes: r.notes || "",
+        enriched_description: finalEnriched,
+        ai_confidence: retryConfidence || r.confidence || "low",
+        ai_notes: notePrefix
+          ? `${notePrefix}${retryNotes || r.notes ? " " + (retryNotes || r.notes) : ""}`
+          : retryNotes || r.notes || "",
       };
       await appendToCache(ENRICHMENT_PROGRESS_PATH, record);
       processed++;
@@ -1101,7 +1339,9 @@ while (batchQueue.length > 0) {
   } catch (err) {
     if (err.message.startsWith("Prompt too long") && batch.length > 1) {
       const mid = Math.ceil(batch.length / 2);
-      process.stdout.write(`\n  Batch too large (${batch.length} items), splitting into ${mid} + ${batch.length - mid}...\n`);
+      process.stdout.write(
+        `\n  Batch too large (${batch.length} items), splitting into ${mid} + ${batch.length - mid}...\n`,
+      );
       batchQueue.unshift(batch.slice(0, mid), batch.slice(mid));
     } else {
       console.error(`\nAI provider failed: ${err.message}`);
@@ -1110,7 +1350,6 @@ while (batchQueue.length > 0) {
     }
   }
 }
-console.log("");
 
 // ============================================================================
 // Section 18 — Deterministic Timestamp Splitting + Output Assembly
@@ -1174,22 +1413,25 @@ for (const m of matchResults) {
       const seg = segments[i];
       const workItemKey = `${matchRowIndex}:${i}`;
       const enrichment = enrichmentByKey.get(workItemKey) || {};
+      const wi = wiForThisRow[i];
 
-      // Use AI-enriched description if available, otherwise use draft from decomposition
-      const enrichedDescription =
-        enrichment.enriched_description || t.description || "";
-      const patterned = applyPatterns(enrichedDescription, patterns);
-
-      // Build AI_Notes with deterministic context
-      const aiNotes = buildAINotesForSplitRow(
-        m,
-        i,
-        m.subTasks.length,
-        enrichment,
-      );
+      let finalDescription, aiConfidence, aiNotes;
+      if (wi?.skipEnrichment) {
+        finalDescription = t.description || "";
+        aiConfidence = "skipped";
+        aiNotes = "Below minimum hours threshold";
+      } else {
+        // Use AI-enriched description if available, otherwise use draft from decomposition
+        const enrichedDescription =
+          enrichment.enriched_description || t.description || "";
+        finalDescription = applyPatterns(enrichedDescription, patterns);
+        aiConfidence = enrichment.ai_confidence || t.confidence || "low";
+        // Build AI_Notes with deterministic context
+        aiNotes = buildAINotesForSplitRow(m, i, m.subTasks.length, enrichment);
+      }
 
       const mirrored = {
-        Description: patterned,
+        Description: finalDescription,
         "Start Date": formatClockifyDate(seg.start),
         "Start Time": formatClockifyTime(seg.start),
         "End Date": formatClockifyDate(seg.end),
@@ -1199,36 +1441,45 @@ for (const m of matchResults) {
       mirroredRows.push(mirrored);
 
       const standardized = {
-        Description: patterned,
+        Description: finalDescription,
         "Start Date": formatClockifyDate(seg.start),
         "Start Time": formatClockifyTime(seg.start),
         "End Date": formatClockifyDate(seg.end),
         "End Time": formatClockifyTime(seg.end),
         "Duration (h)": hoursToHMM(t.hours),
-        AI_Confidence: enrichment.ai_confidence || t.confidence || "low",
+        AI_Confidence: aiConfidence,
         AI_Notes: aiNotes,
         Split_Group_ID: splitGroupId,
       };
       standardizedRows.push(standardized);
 
       diffLines.push(
-        `  → [${i + 1}/${m.subTasks.length}] ${patterned} - ${hoursToHMM(t.hours)}`,
+        `  → [${i + 1}/${m.subTasks.length}] ${finalDescription} - ${hoursToHMM(t.hours)}${wi?.skipEnrichment ? " [skipped]" : ""}`,
       );
     }
     diffLines.push("---");
   } else {
     // Non-split entry
     const workItemKey = `${matchRowIndex}:0`;
+    const wi = wiForThisRow[0];
     const enrichment =
       enrichmentByKey.get(workItemKey) ||
       enrichmentByIndex.get(matchRowIndex) ||
       {};
-    const enrichedDescription =
-      enrichment.enriched_description || m.clockifyEntry.Description;
-    const patterned = applyPatterns(enrichedDescription, patterns);
 
-    // Build AI_Notes for non-split row
-    const aiNotes = buildAINotesForNonSplitRow(m, enrichment);
+    let finalDescription, aiConfidence, aiNotes;
+    if (wi?.skipEnrichment) {
+      finalDescription = m.clockifyEntry.Description;
+      aiConfidence = "skipped";
+      aiNotes = "Below minimum hours threshold";
+    } else {
+      const enrichedDescription =
+        enrichment.enriched_description || m.clockifyEntry.Description;
+      finalDescription = applyPatterns(enrichedDescription, patterns);
+      aiConfidence = enrichment.ai_confidence || m.confidence || "low";
+      // Build AI_Notes for non-split row
+      aiNotes = buildAINotesForNonSplitRow(m, enrichment);
+    }
 
     const start = parseClockifyDate(
       m.clockifyEntry["Start Date"],
@@ -1240,7 +1491,7 @@ for (const m of matchResults) {
     );
 
     const mirrored = {
-      Description: patterned,
+      Description: finalDescription,
       "Start Date": formatClockifyDate(start),
       "Start Time": formatClockifyTime(start),
       "End Date": formatClockifyDate(end),
@@ -1250,13 +1501,13 @@ for (const m of matchResults) {
     mirroredRows.push(mirrored);
 
     const standardized = {
-      Description: patterned,
+      Description: finalDescription,
       "Start Date": formatClockifyDate(start),
       "Start Time": formatClockifyTime(start),
       "End Date": formatClockifyDate(end),
       "End Time": formatClockifyTime(end),
       "Duration (h)": m.clockifyEntry["Duration (h)"],
-      AI_Confidence: enrichment.ai_confidence || m.confidence || "low",
+      AI_Confidence: aiConfidence,
       AI_Notes: aiNotes,
       Split_Group_ID: null,
     };
@@ -1266,9 +1517,15 @@ for (const m of matchResults) {
       `[${m.rowIndex}] ${m.clockifyDate ? formatDateFns(m.clockifyDate, "yyyy-MM-dd") : "?"} | ${m.clockifyEntry["Duration (h)"]}`,
     );
     diffLines.push(`ORIGINAL: ${m.clockifyEntry.Description}`);
-    diffLines.push(
-      `ENRICHED: ${enrichedDescription} - ${m.clockifyEntry["Duration (h)"]}`,
-    );
+    if (wi?.skipEnrichment) {
+      diffLines.push(
+        `SKIPPED: ${finalDescription} - ${m.clockifyEntry["Duration (h)"]} [below minimum hours threshold]`,
+      );
+    } else {
+      diffLines.push(
+        `ENRICHED: ${finalDescription} - ${m.clockifyEntry["Duration (h)"]}`,
+      );
+    }
     diffLines.push("---");
   }
 }
