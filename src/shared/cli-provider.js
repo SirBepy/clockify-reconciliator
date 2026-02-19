@@ -141,7 +141,8 @@ export async function executeProvider(providerName, prompt) {
   let lastError;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      const delay = RETRY_DELAYS_MS[attempt - 1] ?? 10000;
+      const isRateLimit = lastError && (lastError.includes("429") || lastError.includes("rate_limit"));
+      const delay = isRateLimit ? 65000 : (RETRY_DELAYS_MS[attempt - 1] ?? 10000);
       process.stdout.write(
         `\nProvider failed (attempt ${attempt}/${MAX_RETRIES}), retrying in ${delay / 1000}s...\n  Reason: ${lastError}\n`,
       );
@@ -171,6 +172,10 @@ export async function executeProvider(providerName, prompt) {
     }
 
     lastError = detail || `exit status ${result.status}`;
+
+    if (detail.includes("prompt is too long")) {
+      throw new Error(`Prompt too long: ${lastError}`);
+    }
 
     if (attempt === MAX_RETRIES) {
       throw new Error(

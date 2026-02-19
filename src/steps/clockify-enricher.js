@@ -44,6 +44,7 @@ const GITHUB_SUMMARY_PATH = path.resolve(
 );
 const JIRA_SUMMARY_PATH = path.resolve(projectRoot, "cache/jira-summary.json");
 const PATTERNS_PATH = path.resolve(projectRoot, "cache/patterns.json");
+const DECOMPOSITION_CACHE_PATH = path.resolve(projectRoot, "cache/decomposition-cache.json");
 const ENRICHMENT_PROGRESS_PATH = path.resolve(
   projectRoot,
   "cache/enrichment-progress.ndjson",
@@ -410,6 +411,7 @@ function extractTokensFromMetadata(metadata) {
 
 if (parsedArgs.values["force-refresh"]) {
   if (fs.existsSync(PATTERNS_PATH)) fs.unlinkSync(PATTERNS_PATH);
+  if (fs.existsSync(DECOMPOSITION_CACHE_PATH)) fs.unlinkSync(DECOMPOSITION_CACHE_PATH);
   if (fs.existsSync(ENRICHMENT_PROGRESS_PATH))
     fs.unlinkSync(ENRICHMENT_PROGRESS_PATH);
   const alt = ENRICHMENT_PROGRESS_PATH.replace(".ndjson", ".json");
@@ -651,6 +653,15 @@ for (const [k, entries] of groups.entries()) {
 // Section 13 — Task Decomposition (AI)
 // ============================================================================
 
+let decompositionCache = {};
+if (fs.existsSync(DECOMPOSITION_CACHE_PATH)) {
+  try {
+    decompositionCache = JSON.parse(fs.readFileSync(DECOMPOSITION_CACHE_PATH, "utf-8"));
+  } catch {
+    decompositionCache = {};
+  }
+}
+
 for (const [key, entries] of groups.entries()) {
   // Determine if decomposition needed
   const shouldDecompose =
@@ -679,156 +690,168 @@ for (const [key, entries] of groups.entries()) {
     ),
   );
 
-  // Build a detailed decomposition prompt including required context and rules
-  const promptParts = [];
-  promptParts.push(
-    `Decompose the following work into specific subtasks totaling ${totalHours}h.`,
-  );
-  promptParts.push(`Context and rules:
+  let parsedSubTasks = null;
+
+  if (decompositionCache[key]) {
+    console.log(`  Decomposing group "${key}" (${entries.length} entr${entries.length === 1 ? "y" : "ies"}, ${totalHours.toFixed(2)}h)... [cached]`);
+    parsedSubTasks = decompositionCache[key];
+  } else {
+    // Build a detailed decomposition prompt including required context and rules
+    const promptParts = [];
+    promptParts.push(
+      `Decompose the following work into specific subtasks totaling ${totalHours}h.`,
+    );
+    promptParts.push(`Context and rules:
   - Provide concise subtask descriptions in past tense, professional and defensible.
   - Hours must sum exactly to ${totalHours}h; adjust the last item to ensure the sum matches.
   - Testing/debugging tasks should not exceed 1h total unless the work is primarily test-related.
   - Be specific about what was done; reference files/modules where applicable.
   - Return ONLY valid JSON (no markdown) as an array of objects: { "description": string, "hours": number, "ticket_id": string|null, "confidence": "high"|"medium"|"low" }.`);
 
-  // Include Clockify descriptions for each entry
-  promptParts.push(`Clockify entries (${entries.length}):`);
-  for (const e of entries) {
-    const desc = e.clockifyEntry.Description || "";
-    const ch = e.clockifyEntry["Duration (h)"] || "";
-    promptParts.push(`- Entry index ${e.rowIndex}: "${desc}" — ${ch}h`);
-  }
-
-  // Include Jira and GitHub context
-  if (jiraTickets.length > 0)
-    promptParts.push(`Jira tickets and metadata: ${jiraTickets.join(", ")}`);
-  if (gh.length > 0) promptParts.push(`GitHub commits: ${gh.map((s) => (s || "").slice(0, 8)).join(", ")}`);
-
-  // Provide per-commit/jira detailed context
-  promptParts.push("Detailed GitHub/Jira context:");
-  // list GitHub commit details
-  for (const sha of gh) {
-    const prObj = entries
-      .flatMap((e) => e.groupGithubMatches || [])
-      .find((p) => p.sha == sha);
-    if (prObj) {
-      const modules = Array.isArray(prObj.modules_touched)
-        ? prObj.modules_touched.join(", ")
-        : "";
-      const filesCount = Array.isArray(prObj.files_changed)
-        ? prObj.files_changed.length
-        : prObj.files_changed || 0;
-      let line = `- Commit ${(sha || "").slice(0, 8)}: message="${prObj.message || ""}", ai_description="${prObj.ai_description || ""}", modules="${modules}", files_changed=${filesCount}, lines_added=${prObj.lines_added || 0}, lines_removed=${prObj.lines_removed || 0}`;
-      if (prObj.pr_context) {
-        line += `, PR#${prObj.pr_context.pr_number}: "${prObj.pr_context.pr_title}" — ${prObj.pr_context.pr_ai_description || ""}`;
-      }
-      promptParts.push(line);
+    // Include Clockify descriptions for each entry
+    promptParts.push(`Clockify entries (${entries.length}):`);
+    for (const e of entries) {
+      const desc = e.clockifyEntry.Description || "";
+      const ch = e.clockifyEntry["Duration (h)"] || "";
+      promptParts.push(`- Entry index ${e.rowIndex}: "${desc}" — ${ch}h`);
     }
-  }
 
-  // list Jira details
-  for (const jt of jiraTickets) {
-    const jObj = entries
-      .flatMap((e) => e.groupJiraMatches || [])
-      .find((j) => j.ticket_id == jt);
-    if (jObj) {
-      const sp =
-        jObj.story_points || jObj.storyPoint || jObj.story_points_count || 0;
-      const back =
-        jObj.back_to_development_count || jObj.back_to_dev_count || 0;
-      const summary = jObj.description_summary || "";
-      promptParts.push(
-        `- Jira ${jt}: title="${jObj.title || ""}", story_points=${sp}, back_to_development_count=${back}, description_summary="${summary}"`,
-      );
-    }
-  }
+    // Include Jira and GitHub context
+    if (jiraTickets.length > 0)
+      promptParts.push(`Jira tickets and metadata: ${jiraTickets.join(", ")}`);
+    if (gh.length > 0) promptParts.push(`GitHub commits: ${gh.map((s) => (s || "").slice(0, 8)).join(", ")}`);
 
-  // Compute deterministic weighted hour targets for multi-commit groups
-  const allGithubMatches = entries.flatMap((e) => e.groupGithubMatches || e.githubMatches || []);
-  const allJiraMatches = entries.flatMap((e) => e.groupJiraMatches || e.jiraMatches || []);
-  const uniqueGithubMatches = Array.from(
-    new Map(allGithubMatches.filter((g) => g.sha).map((g) => [g.sha, g])).values(),
-  );
-
-  if (uniqueGithubMatches.length > 1) {
-    const commitWeights = computeCommitWeights(uniqueGithubMatches, allJiraMatches, totalHours);
-    if (commitWeights.length > 0) {
-      promptParts.push(
-        "Pre-computed weighted hour targets per commit (story points primary, lines changed tiebreaker). Allocate subtasks to match these targets as closely as possible:",
-      );
-      for (const cw of commitWeights) {
-        promptParts.push(`  - Commit ${(cw.sha || "").slice(0, 8)}: ${cw.hours.toFixed(2)}h`);
-      }
-    }
-  }
-
-  promptParts.push(
-    "When distributing hours across subtasks, weight by Jira story points first, then use lines_added + lines_removed as a tiebreaker.",
-  );
-  promptParts.push(
-    "Return a JSON array of subtask objects: { description, hours, ticket_id (optional), confidence }.",
-  );
-
-  console.log(`  Decomposing group "${key}" (${entries.length} entr${entries.length === 1 ? "y" : "ies"}, ${totalHours.toFixed(2)}h)...`);
-  try {
-    const resp = await executeProvider(
-      selectedProvider,
-      promptParts.join("\n\n"),
-    );
-    const { response: respResponse, metadata: respMeta } = resp || {};
-    totalActualTokensAccum += extractTokensFromMetadata(respMeta);
-    const cleaned = stripMarkdownFences(respResponse);
-    const parsed = safeParseJSON(cleaned, null);
-    if (Array.isArray(parsed)) {
-      // validate sum
-      let sum = parsed.reduce((s, t) => s + (t.hours || 0), 0);
-      if (Math.abs(sum - totalHours) > 0.001) {
-        const diff = +(totalHours - sum).toFixed(6);
-        parsed[parsed.length - 1].hours = +(
-          parsed[parsed.length - 1].hours + diff
-        ).toFixed(6);
-      }
-
-      // Assign sub-tasks to group entries using shared cursor (each sub-task consumed only once)
-      const subTasksCopy = parsed.map((t) => ({ ...t })); // shallow copy for cursor-based allocation
-      let cursorIndex = 0;
-      for (const e of entries) {
-        const entryHours = e.isMultiDayGroup
-          ? parseHMM(e.clockifyEntry["Duration (h)"])
-          : totalHours;
-        e.subTasks = [];
-        let remaining = entryHours;
-
-        // Greedily allocate sub-tasks from cursor position
-        while (remaining > 0 && cursorIndex < subTasksCopy.length) {
-          const t = subTasksCopy[cursorIndex];
-          if (t.hours <= remaining) {
-            // Entire sub-task fits; consume it and advance cursor
-            e.subTasks.push({ ...t });
-            remaining = +(remaining - t.hours).toFixed(6);
-            cursorIndex++;
-          } else {
-            // Partial assignment; keep cursor at this sub-task, adjust its hours
-            e.subTasks.push({ ...t, hours: remaining });
-            subTasksCopy[cursorIndex].hours = +(t.hours - remaining).toFixed(6);
-            remaining = 0;
-          }
+    // Provide per-commit/jira detailed context
+    promptParts.push("Detailed GitHub/Jira context:");
+    // list GitHub commit details
+    for (const sha of gh) {
+      const prObj = entries
+        .flatMap((e) => e.groupGithubMatches || [])
+        .find((p) => p.sha == sha);
+      if (prObj) {
+        const modules = Array.isArray(prObj.modules_touched)
+          ? prObj.modules_touched.join(", ")
+          : "";
+        const filesCount = Array.isArray(prObj.files_changed)
+          ? prObj.files_changed.length
+          : prObj.files_changed || 0;
+        let line = `- Commit ${(sha || "").slice(0, 8)}: message="${prObj.message || ""}", ai_description="${prObj.ai_description || ""}", modules="${modules}", files_changed=${filesCount}, lines_added=${prObj.lines_added || 0}, lines_removed=${prObj.lines_removed || 0}`;
+        if (prObj.pr_context) {
+          line += `, PR#${prObj.pr_context.pr_number}: "${prObj.pr_context.pr_title}" — ${prObj.pr_context.pr_ai_description || ""}`;
         }
+        promptParts.push(line);
+      }
+    }
 
-        // Ensure entry's sub-tasks sum exactly to its hours (adjust last if needed)
-        const sum = e.subTasks.reduce((s, x) => s + x.hours, 0);
-        const diff = +(entryHours - sum).toFixed(6);
-        if (Math.abs(diff) > 0 && e.subTasks.length > 0) {
-          e.subTasks[e.subTasks.length - 1].hours = +(
-            e.subTasks[e.subTasks.length - 1].hours + diff
+    // list Jira details
+    for (const jt of jiraTickets) {
+      const jObj = entries
+        .flatMap((e) => e.groupJiraMatches || [])
+        .find((j) => j.ticket_id == jt);
+      if (jObj) {
+        const sp =
+          jObj.story_points || jObj.storyPoint || jObj.story_points_count || 0;
+        const back =
+          jObj.back_to_development_count || jObj.back_to_dev_count || 0;
+        const summary = jObj.description_summary || "";
+        promptParts.push(
+          `- Jira ${jt}: title="${jObj.title || ""}", story_points=${sp}, back_to_development_count=${back}, description_summary="${summary}"`,
+        );
+      }
+    }
+
+    // Compute deterministic weighted hour targets for multi-commit groups
+    const allGithubMatches = entries.flatMap((e) => e.groupGithubMatches || e.githubMatches || []);
+    const allJiraMatches = entries.flatMap((e) => e.groupJiraMatches || e.jiraMatches || []);
+    const uniqueGithubMatches = Array.from(
+      new Map(allGithubMatches.filter((g) => g.sha).map((g) => [g.sha, g])).values(),
+    );
+
+    if (uniqueGithubMatches.length > 1) {
+      const commitWeights = computeCommitWeights(uniqueGithubMatches, allJiraMatches, totalHours);
+      if (commitWeights.length > 0) {
+        promptParts.push(
+          "Pre-computed weighted hour targets per commit (story points primary, lines changed tiebreaker). Allocate subtasks to match these targets as closely as possible:",
+        );
+        for (const cw of commitWeights) {
+          promptParts.push(`  - Commit ${(cw.sha || "").slice(0, 8)}: ${cw.hours.toFixed(2)}h`);
+        }
+      }
+    }
+
+    promptParts.push(
+      "When distributing hours across subtasks, weight by Jira story points first, then use lines_added + lines_removed as a tiebreaker.",
+    );
+    promptParts.push(
+      "Return a JSON array of subtask objects: { description, hours, ticket_id (optional), confidence }.",
+    );
+
+    console.log(`  Decomposing group "${key}" (${entries.length} entr${entries.length === 1 ? "y" : "ies"}, ${totalHours.toFixed(2)}h)...`);
+    try {
+      const resp = await executeProvider(
+        selectedProvider,
+        promptParts.join("\n\n"),
+      );
+      const { response: respResponse, metadata: respMeta } = resp || {};
+      totalActualTokensAccum += extractTokensFromMetadata(respMeta);
+      const cleaned = stripMarkdownFences(respResponse);
+      const parsed = safeParseJSON(cleaned, null);
+      if (Array.isArray(parsed)) {
+        // validate sum
+        let sum = parsed.reduce((s, t) => s + (t.hours || 0), 0);
+        if (Math.abs(sum - totalHours) > 0.001) {
+          const diff = +(totalHours - sum).toFixed(6);
+          parsed[parsed.length - 1].hours = +(
+            parsed[parsed.length - 1].hours + diff
           ).toFixed(6);
         }
+        parsedSubTasks = parsed;
+        decompositionCache[key] = parsedSubTasks;
+        fs.writeFileSync(DECOMPOSITION_CACHE_PATH, JSON.stringify(decompositionCache, null, 2), "utf-8");
+      }
+    } catch (err) {
+      console.warn(
+        `Warning: Decomposition failed for group ${key}: ${err.message}`,
+      );
+    }
+  }
+
+  if (Array.isArray(parsedSubTasks)) {
+    // Assign sub-tasks to group entries using shared cursor (each sub-task consumed only once)
+    const subTasksCopy = parsedSubTasks.map((t) => ({ ...t }));
+    let cursorIndex = 0;
+    for (const e of entries) {
+      const entryHours = e.isMultiDayGroup
+        ? parseHMM(e.clockifyEntry["Duration (h)"])
+        : totalHours;
+      e.subTasks = [];
+      let remaining = entryHours;
+
+      // Greedily allocate sub-tasks from cursor position
+      while (remaining > 0 && cursorIndex < subTasksCopy.length) {
+        const t = subTasksCopy[cursorIndex];
+        if (t.hours <= remaining) {
+          // Entire sub-task fits; consume it and advance cursor
+          e.subTasks.push({ ...t });
+          remaining = +(remaining - t.hours).toFixed(6);
+          cursorIndex++;
+        } else {
+          // Partial assignment; keep cursor at this sub-task, adjust its hours
+          e.subTasks.push({ ...t, hours: remaining });
+          subTasksCopy[cursorIndex].hours = +(t.hours - remaining).toFixed(6);
+          remaining = 0;
+        }
+      }
+
+      // Ensure entry's sub-tasks sum exactly to its hours (adjust last if needed)
+      const sum = e.subTasks.reduce((s, x) => s + x.hours, 0);
+      const diff = +(entryHours - sum).toFixed(6);
+      if (Math.abs(diff) > 0 && e.subTasks.length > 0) {
+        e.subTasks[e.subTasks.length - 1].hours = +(
+          e.subTasks[e.subTasks.length - 1].hours + diff
+        ).toFixed(6);
       }
     }
-  } catch (err) {
-    console.warn(
-      `Warning: Decomposition failed for group ${key}: ${err.message}`,
-    );
   }
 }
 
@@ -982,7 +1005,9 @@ for (const [k, arr] of byKey.entries()) {
 
 let processed = 0;
 const total = batches.reduce((s, b) => s + b.length, 0);
-for (const batch of batches) {
+const batchQueue = [...batches];
+while (batchQueue.length > 0) {
+  const batch = batchQueue.shift();
   const promptLines = [];
   promptLines.push(
     "Enrich the following Clockify entries. For each entry, produce a concise, professional, past-tense, defensible description of work performed, suitable for time-tracking records. Avoid referencing AI. Be specific and reference PRs, files, or Jira tickets when applicable.",
@@ -1003,9 +1028,11 @@ for (const batch of batches) {
         const filesCount = Array.isArray(g.files_changed)
           ? g.files_changed.length
           : g.files_changed || 0;
-        let entry = `Commit ${sha8}: ${(g.message || "").replace(/\n/g, " ")}\nDate: ${date10} | Files: ${filesCount} | Modules: ${modules} | Lines: +${g.lines_added || 0}/-${g.lines_removed || 0}`;
+        const msg = (g.message || "").replace(/\n/g, " ").slice(0, 200);
+        let entry = `Commit ${sha8}: ${msg}\nDate: ${date10} | Files: ${filesCount} | Modules: ${modules} | Lines: +${g.lines_added || 0}/-${g.lines_removed || 0}`;
         if (g.pr_context) {
-          entry += `\nPR context: Part of PR #${g.pr_context.pr_number} "${(g.pr_context.pr_title || "").replace(/\n/g, " ")}" — ${(g.pr_context.pr_ai_description || "").replace(/\n/g, " ")}`;
+          const prDesc = (g.pr_context.pr_ai_description || "").replace(/\n/g, " ").slice(0, 400);
+          entry += `\nPR context: Part of PR #${g.pr_context.pr_number} "${(g.pr_context.pr_title || "").replace(/\n/g, " ")}" — ${prDesc}`;
         }
         return entry;
       })
@@ -1072,9 +1099,15 @@ for (const batch of batches) {
       process.stdout.write(`\rEnriching entries... ${processed}/${total}`);
     }
   } catch (err) {
-    console.error(`AI provider failed: ${err.message}`);
-    console.error("Progress saved. Re-run to resume.");
-    process.exit(1);
+    if (err.message.startsWith("Prompt too long") && batch.length > 1) {
+      const mid = Math.ceil(batch.length / 2);
+      process.stdout.write(`\n  Batch too large (${batch.length} items), splitting into ${mid} + ${batch.length - mid}...\n`);
+      batchQueue.unshift(batch.slice(0, mid), batch.slice(mid));
+    } else {
+      console.error(`\nAI provider failed: ${err.message}`);
+      console.error("Progress saved. Re-run to resume.");
+      process.exit(1);
+    }
   }
 }
 console.log("");
