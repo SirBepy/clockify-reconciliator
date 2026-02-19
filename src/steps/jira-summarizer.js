@@ -155,7 +155,7 @@ async function fetchJira(path, config, { method = "GET", body } = {}) {
 
 async function fetchAllTickets(config) {
   const projectKeys = config.jira.project_keys.join(", ");
-  const jql = `project in (${projectKeys}) AND assignee = currentUser() AND updated >= "${config.jira.date_from}" AND updated <= "${config.jira.date_to}" ORDER BY created ASC`;
+  const jql = `project in (${projectKeys}) AND assignee was "${config.jira.user_email}" AND updated >= "${config.jira.date_from}" AND updated <= "${config.jira.date_to}" ORDER BY created ASC`;
 
   let allIssues = [];
   let nextPageToken = undefined;

@@ -121,7 +121,7 @@ if (!fs.existsSync(DIRECT_COMMITS_PATH)) {
 
   if (answer.toLowerCase() !== "y") {
     console.log("Check workflow order. Run collect-direct-commits.js first.");
-    process.exit(0);
+    process.exit(1);
   }
 }
 
@@ -562,7 +562,7 @@ Respond ONLY with valid JSON, no markdown fences.`;
 
       if (answer.toLowerCase() !== "y") {
         console.log("Check config.json github settings.");
-        process.exit(0);
+        process.exit(1);
       }
     }
 

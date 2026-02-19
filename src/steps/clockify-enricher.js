@@ -442,7 +442,7 @@ if (!fs.existsSync(PATTERNS_PATH)) {
   const accept = (await prompt("Accept these patterns? (y/n): ")).toLowerCase();
   if (accept !== "y") {
     console.log("Edit cache/patterns.json and run enricher again.");
-    process.exit(0);
+    process.exit(1);
   }
 } else {
   patterns = JSON.parse(fs.readFileSync(PATTERNS_PATH, "utf-8"));
@@ -900,7 +900,7 @@ const tokenAns = (
     `Estimated tokens: ~${adjustedEstimate.toLocaleString()}. Continue? (y/n) `,
   )
 ).toLowerCase();
-if (tokenAns !== "y") process.exit(0);
+if (tokenAns !== "y") process.exit(1);
 
 // ============================================================================
 // Section 15 — Resume Detection for Enrichment
