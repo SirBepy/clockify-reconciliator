@@ -16,7 +16,9 @@
     "step2": "node src/steps/collect-direct-commits.js",
     "step3": "node src/steps/github-summarizer.js",
     "step4": "node src/steps/jira-summarizer.js",
-    "step5": "node src/steps/clockify-enricher.js"
+    "step5": "node src/steps/clockify-enricher.js",
+    "step6": "node src/steps/clockify-uploader.js",
+    "upload": "node src/steps/clockify-uploader.js"
   },
   "keywords": [
     "clockify",

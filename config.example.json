@@ -50,10 +50,16 @@
     "input_csv": "./input/clockify-export.csv",
     "output_mirrored": "./output/enriched-mirrored.csv",
     "output_standardized": "./output/enriched-standardized.csv",
+    "api_key": "YOUR_CLOCKIFY_API_KEY",
+    "workspace_id": "YOUR_WORKSPACE_ID",
+    "project_id": "YOUR_PROJECT_ID",
     "__notes": {
       "input_csv": "Path to the Clockify detailed export CSV; must contain columns: Description, Start Date, Start Time, End Date, End Time, Duration (h)",
       "output_mirrored": "Output CSV matching input schema — safest for legal/client submission",
-      "output_standardized": "Output CSV with extra columns AI_Confidence, AI_Notes, Split_Group_ID — use for manual review"
+      "output_standardized": "Output CSV with extra columns AI_Confidence, AI_Notes, Split_Group_ID — use for manual review",
+      "api_key": "Required for clockify-uploader; get from Clockify → Profile Settings → API",
+      "workspace_id": "Your Clockify workspace ID; visible in the URL when logged in",
+      "project_id": "Project ID to assign all uploaded time entries to"
     }
   },
   "enrichment": {
