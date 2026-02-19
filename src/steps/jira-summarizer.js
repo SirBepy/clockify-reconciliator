@@ -120,7 +120,7 @@ if (processedIds.size > 0) {
 // Section 7 — Jira API Helper (Script Phase)
 // ============================================================================
 
-async function fetchJira(path, config) {
+async function fetchJira(path, config, { method = "GET", body } = {}) {
   const url = config.jira.base_url + path;
   const credentials = Buffer.from(
     `${config.jira.user_email}:${config.jira.api_token}`,
@@ -131,7 +131,14 @@ async function fetchJira(path, config) {
     Accept: "application/json",
   };
 
-  const response = await fetch(url, { headers });
+  const options = { method, headers };
+
+  if (body) {
+    headers["Content-Type"] = "application/json";
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(url, options);
 
   if (!response.ok) {
     throw new Error(
@@ -151,37 +158,44 @@ async function fetchAllTickets(config) {
   const jql = `project in (${projectKeys}) AND assignee = currentUser() AND updated >= "${config.jira.date_from}" AND updated <= "${config.jira.date_to}" ORDER BY created ASC`;
 
   let allIssues = [];
-  let startAt = 0;
-  let total = null;
+  let nextPageToken = undefined;
+
+  console.log(`JQL: ${jql}`);
+  console.log("Fetching tickets...");
 
   while (true) {
-    const queryParams = new URLSearchParams({
+    const body = {
       jql,
-      startAt,
       maxResults: JIRA_PAGE_SIZE,
-      fields:
-        "summary,issuetype,status,description,timetracking,customfield_10016,customfield_10028",
-      expand: "changelog",
-    });
+      fields: [
+        "summary",
+        "issuetype",
+        "status",
+        "description",
+        "timetracking",
+        "customfield_10016",
+        "customfield_10028",
+      ],
+    };
 
-    const response = await fetchJira(
-      `/rest/api/3/search?${queryParams}`,
-      config,
-    );
-
-    if (total === null) {
-      total = response.total;
-      console.log(`Fetching tickets... 0/${total}`);
+    if (nextPageToken) {
+      body.nextPageToken = nextPageToken;
     }
 
-    allIssues = allIssues.concat(response.issues);
-    process.stdout.write(`\rFetching tickets... ${allIssues.length}/${total}`);
+    const response = await fetchJira("/rest/api/3/search/jql", config, {
+      method: "POST",
+      body,
+    });
 
-    if (startAt + response.issues.length >= total) {
+    const page = response.issues ?? [];
+    allIssues = allIssues.concat(page);
+    process.stdout.write(`\rFetching tickets... ${allIssues.length}`);
+
+    if (response.isLast || page.length === 0) {
       break;
     }
 
-    startAt += JIRA_PAGE_SIZE;
+    nextPageToken = response.nextPageToken;
   }
 
   console.log("");
@@ -412,7 +426,7 @@ ${descriptionText}`;
 
       if (answer.toLowerCase() !== "y") {
         console.log("Check config.json jira settings.");
-        process.exit(0);
+        process.exit(1);
       }
 
       await writeConsolidatedCache(CACHE_PATH, []);
