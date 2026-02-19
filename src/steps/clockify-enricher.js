@@ -1066,15 +1066,15 @@ for (const arr of byKey.values()) {
 let processed = 0;
 const total = batches.reduce((s, b) => s + b.length, 0);
 const batchQueue = [...batches];
-const minWords = config.enrichment?.min_words ?? null;
-const maxWords = config.enrichment?.max_words ?? null;
+const minChars = config.enrichment?.min_characters ?? null;
+const maxChars = config.enrichment?.max_characters ?? null;
 let wordConstraintLine = "";
-if (minWords !== null && maxWords !== null) {
-  wordConstraintLine = `Each enriched_description must be between ${minWords} and ${maxWords} words.`;
-} else if (minWords !== null) {
-  wordConstraintLine = `Each enriched_description must be at least ${minWords} words.`;
-} else if (maxWords !== null) {
-  wordConstraintLine = `Each enriched_description must be at most ${maxWords} words.`;
+if (minChars !== null && maxChars !== null) {
+  wordConstraintLine = `Each enriched_description must be between ${minChars} and ${maxChars} characters.`;
+} else if (minChars !== null) {
+  wordConstraintLine = `Each enriched_description must be at least ${minChars} characters.`;
+} else if (maxChars !== null) {
+  wordConstraintLine = `Each enriched_description must be at most ${maxChars} characters.`;
 }
 while (batchQueue.length > 0) {
   const batch = batchQueue.shift();
