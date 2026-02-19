@@ -43,7 +43,9 @@ export async function promptProviderSelection(providers, defaultIndex = null) {
       console.log(`AI provider: ${providers[idx]} (auto-selected)`);
       return providers[idx];
     }
-    console.warn(`Invalid --ai value "${defaultIndex}", falling back to prompt.`);
+    console.warn(
+      `Invalid --ai value "${defaultIndex}", falling back to prompt.`,
+    );
   }
 
   const menu = providers
@@ -139,9 +141,9 @@ export async function executeProvider(providerName, prompt) {
   let lastError;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     if (attempt > 0) {
-      const delay = RETRY_DELAYS_MS[attempt - 1] ?? 30000;
+      const delay = RETRY_DELAYS_MS[attempt - 1] ?? 10000;
       process.stdout.write(
-        `\nAPI overloaded, retrying in ${delay / 1000}s (attempt ${attempt}/${MAX_RETRIES})...\n`,
+        `\nProvider failed (attempt ${attempt}/${MAX_RETRIES}), retrying in ${delay / 1000}s...\n  Reason: ${lastError}\n`,
       );
       await sleep(delay);
       if (fs.existsSync(responseFile)) fs.unlinkSync(responseFile);
@@ -158,22 +160,22 @@ export async function executeProvider(providerName, prompt) {
     );
 
     if (result.error) {
-      throw new Error(`Provider execution failed: ${result.error.message}`);
+      throw new Error(`Provider spawn failed: ${result.error.message}`);
     }
 
     if (result.status === 0) break;
 
-    let detail = result.stderr || result.stdout || "";
+    let detail = (result.stderr || result.stdout || "").trim();
     if (!detail && fs.existsSync(responseFile)) {
-      detail = fs.readFileSync(responseFile, "utf-8");
+      detail = fs.readFileSync(responseFile, "utf-8").trim();
     }
 
-    lastError = `Provider execution failed with status ${result.status}: ${detail}`;
+    lastError = detail || `exit status ${result.status}`;
 
-    const isOverloaded =
-      detail.includes("overloaded") || detail.includes("529");
-    if (!isOverloaded || attempt === MAX_RETRIES) {
-      throw new Error(`Provider execution failed: ${lastError}`);
+    if (attempt === MAX_RETRIES) {
+      throw new Error(
+        `Provider failed after ${MAX_RETRIES} retr${MAX_RETRIES === 1 ? "y" : "ies"}: ${lastError}`,
+      );
     }
   }
 

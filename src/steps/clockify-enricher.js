@@ -432,6 +432,7 @@ if (!fs.existsSync(PATTERNS_PATH)) {
 
   const promptText = `Detect pattern groups from the following Clockify descriptions. Return a JSON object where each key is a group id and value is { variants: [..], suggested_standard: string, count: number }:\n\n${descriptions.join("\n")}`;
 
+  console.log(`Calling AI to detect patterns from ${descriptions.length} unique descriptions...`);
   const result = await executeProvider(selectedProvider, promptText);
   const { response: resultResponse, metadata: resultMeta } = result || {};
   totalActualTokensAccum += extractTokensFromMetadata(resultMeta);
@@ -579,6 +580,7 @@ if (unmatched.length > 0) {
 
   const semanticPrompt = `For these unmatched Clockify entries, suggest possible GitHub commit or Jira ticket matches.\n\nEntries:\n${entriesList}\n\nGitHub items:\n${githubList}\n\nJira Tickets:\n${jiraList}\n\nReturn a JSON array where each element is { rowIndex: <number>, github_match: <"COMMIT@sha=<8-char-sha>"|null>, jira_match: <ticket_id|null>, confidence: "high"|"medium"|"low" }`;
 
+  console.log(`Running semantic AI matching for ${unmatched.length} unmatched entries...`);
   try {
     const resp = await executeProvider(selectedProvider, semanticPrompt);
     const { response: respResponse, metadata: respMeta } = resp || {};
@@ -767,6 +769,7 @@ for (const [key, entries] of groups.entries()) {
     "Return a JSON array of subtask objects: { description, hours, ticket_id (optional), confidence }.",
   );
 
+  console.log(`  Decomposing group "${key}" (${entries.length} entr${entries.length === 1 ? "y" : "ies"}, ${totalHours.toFixed(2)}h)...`);
   try {
     const resp = await executeProvider(
       selectedProvider,
@@ -1035,6 +1038,7 @@ for (const batch of batches) {
     promptLines.push("---");
   }
 
+  process.stdout.write(`\rEnriching entries... ${processed}/${total} [calling AI for batch of ${batch.length}...]`);
   try {
     const resp = await executeProvider(
       selectedProvider,
@@ -1068,7 +1072,8 @@ for (const batch of batches) {
       process.stdout.write(`\rEnriching entries... ${processed}/${total}`);
     }
   } catch (err) {
-    console.error("AI provider failed. Progress saved. Re-run to resume.");
+    console.error(`AI provider failed: ${err.message}`);
+    console.error("Progress saved. Re-run to resume.");
     process.exit(1);
   }
 }
