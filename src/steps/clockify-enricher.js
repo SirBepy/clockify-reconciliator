@@ -206,12 +206,19 @@ function computeCommitWeights(githubMatches, jiraMatches, totalHours) {
 
 const options = {
   "force-refresh": { type: "boolean", short: "f" },
+  ai: { type: "string" },
+  yes: { type: "boolean", short: "y" },
   help: { type: "boolean", short: "h" },
 };
 
+if (process.argv.includes("--default-params")) {
+  const idx = process.argv.indexOf("--default-params");
+  process.argv.splice(idx, 1, "--ai", "1", "--use-cache", "--yes");
+}
+
 let parsedArgs;
 try {
-  parsedArgs = parseArgs({ options });
+  parsedArgs = parseArgs({ options, strict: false });
 } catch (err) {
   console.error(`Failed to parse CLI arguments: ${err.message}`);
   process.exit(1);
@@ -226,6 +233,8 @@ Usage:
 
 Options:
   --force-refresh, -f     Clear caches and regenerate
+  --ai <number>           Auto-select AI provider by number (e.g. --ai 1)
+  --yes, -y               Auto-confirm all prompts
   --help, -h              Show this help message
 `);
   process.exit(0);
@@ -330,9 +339,13 @@ Jira config:   ${config.jira.date_from} → ${config.jira.date_to}
 
 Accept recommended changes and restart the script? (y/n) `);
 
-    const ans = (
-      await prompt("Accept recommended changes and restart the script? (y/n) ")
-    ).toLowerCase();
+    let ans;
+    if (parsedArgs.values.yes) {
+      console.log("Accept recommended changes and restart the script? (y/n) y (auto)");
+      ans = "y";
+    } else {
+      ans = (await prompt("Accept recommended changes and restart the script? (y/n) ")).toLowerCase();
+    }
     if (ans === "y") {
       // Update config file
       const configPath = path.join(projectRoot, "config.json");
@@ -371,7 +384,7 @@ if (providers.length === 0) {
   );
   process.exit(1);
 }
-const selectedProvider = await promptProviderSelection(providers);
+const selectedProvider = await promptProviderSelection(providers, parsedArgs.values.ai ?? null);
 // Accumulate tokens used from provider metadata across all calls
 let totalActualTokensAccum = 0;
 
@@ -439,7 +452,13 @@ if (!fs.existsSync(PATTERNS_PATH)) {
     );
   }
 
-  const accept = (await prompt("Accept these patterns? (y/n): ")).toLowerCase();
+  let accept;
+  if (parsedArgs.values.yes) {
+    console.log("Accept these patterns? (y/n): y (auto)");
+    accept = "y";
+  } else {
+    accept = (await prompt("Accept these patterns? (y/n): ")).toLowerCase();
+  }
   if (accept !== "y") {
     console.log("Edit cache/patterns.json and run enricher again.");
     process.exit(1);
@@ -895,11 +914,15 @@ const coefficient =
 const baseEstimate = totalOutputRows * 800;
 const adjustedEstimate = Math.round(baseEstimate * coefficient);
 
-const tokenAns = (
-  await prompt(
-    `Estimated tokens: ~${adjustedEstimate.toLocaleString()}. Continue? (y/n) `,
-  )
-).toLowerCase();
+let tokenAns;
+if (parsedArgs.values.yes) {
+  console.log(`Estimated tokens: ~${adjustedEstimate.toLocaleString()}. Continue? (y/n) y (auto)`);
+  tokenAns = "y";
+} else {
+  tokenAns = (
+    await prompt(`Estimated tokens: ~${adjustedEstimate.toLocaleString()}. Continue? (y/n) `)
+  ).toLowerCase();
+}
 if (tokenAns !== "y") process.exit(1);
 
 // ============================================================================

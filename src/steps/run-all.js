@@ -49,9 +49,38 @@ function ask(question) {
   });
 }
 
+// ============================================================================
+// Flags
+// ============================================================================
+
+let rawArgs = process.argv.slice(2);
+
+// Expand --default-params into its constituent flags
+if (rawArgs.includes("--default-params")) {
+  rawArgs = rawArgs.filter((a) => a !== "--default-params");
+  rawArgs.push("--ai", "1", "--use-cache", "--yes");
+}
+
+// Collect flags to forward to each step
+const forwardArgs = [];
+let yesFlag = false;
+for (let i = 0; i < rawArgs.length; i++) {
+  const arg = rawArgs[i];
+  if (arg === "--ai" && rawArgs[i + 1]) {
+    forwardArgs.push("--ai", rawArgs[++i]);
+  } else if (arg === "--use-cache") {
+    forwardArgs.push("--use-cache");
+  } else if (arg === "--force-refresh" || arg === "-f") {
+    forwardArgs.push("--force-refresh");
+  } else if (arg === "--yes" || arg === "-y") {
+    yesFlag = true;
+    forwardArgs.push("--yes");
+  }
+}
+
 function runStep(script) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [path.join(__dirname, script)], {
+    const child = spawn(process.execPath, [path.join(__dirname, script), ...forwardArgs], {
       stdio: "inherit",
       cwd: __dirname,
     });
@@ -66,13 +95,18 @@ async function main() {
 
   if (state && !state.completed && state.failedStep !== undefined) {
     const step = STEPS[state.failedStep];
-    const answer = await ask(
-      `\nLast run failed at step ${state.failedStep + 1} (${step.label}).\nResume from step ${state.failedStep + 1}? [y/n] `
-    );
-    if (answer === "y" || answer === "yes") {
+    if (yesFlag) {
+      console.log(`\nLast run failed at step ${state.failedStep + 1} (${step.label}). Resuming automatically.`);
       startFrom = state.failedStep;
     } else {
-      clearState();
+      const answer = await ask(
+        `\nLast run failed at step ${state.failedStep + 1} (${step.label}).\nResume from step ${state.failedStep + 1}? [y/n] `
+      );
+      if (answer === "y" || answer === "yes") {
+        startFrom = state.failedStep;
+      } else {
+        clearState();
+      }
     }
   } else if (state?.completed) {
     clearState();

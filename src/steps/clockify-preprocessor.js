@@ -58,9 +58,14 @@ const options = {
   },
 };
 
+if (process.argv.includes("--default-params")) {
+  const idx = process.argv.indexOf("--default-params");
+  process.argv.splice(idx, 1, "--ai", "1", "--use-cache", "--yes");
+}
+
 let parsedArgs;
 try {
-  parsedArgs = parseArgs({ options });
+  parsedArgs = parseArgs({ options, strict: false });
 } catch (error) {
   console.error(`Failed to parse CLI arguments: ${error.message}`);
   process.exit(1);

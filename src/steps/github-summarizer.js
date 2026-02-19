@@ -47,19 +47,21 @@ const GITHUB_PR_PAGE_SIZE = 100;
 // ============================================================================
 
 const options = {
-  "force-refresh": {
-    type: "boolean",
-    short: "f",
-  },
-  help: {
-    type: "boolean",
-    short: "h",
-  },
+  "force-refresh": { type: "boolean", short: "f" },
+  "use-cache": { type: "boolean" },
+  ai: { type: "string" },
+  yes: { type: "boolean", short: "y" },
+  help: { type: "boolean", short: "h" },
 };
+
+if (process.argv.includes("--default-params")) {
+  const idx = process.argv.indexOf("--default-params");
+  process.argv.splice(idx, 1, "--ai", "1", "--use-cache", "--yes");
+}
 
 let parsedArgs;
 try {
-  parsedArgs = parseArgs({ options });
+  parsedArgs = parseArgs({ options, strict: false });
 } catch (error) {
   console.error(`Failed to parse CLI arguments: ${error.message}`);
   process.exit(1);
@@ -74,6 +76,9 @@ Usage:
 
 Options:
   --force-refresh, -f     Clear cache and fetch fresh data
+  --use-cache             Use existing PR cache without prompting
+  --ai <number>           Auto-select AI provider by number (e.g. --ai 1)
+  --yes, -y               Auto-confirm all prompts
   --help, -h              Show this help message
 `);
   process.exit(0);
@@ -112,12 +117,15 @@ if (!fs.existsSync(DIRECT_COMMITS_PATH)) {
     output: process.stdout,
   });
 
-  const answer = await new Promise((resolve) => {
-    rl.question("Continue anyway? (y/n) ", (answer) => {
-      rl.close();
-      resolve(answer);
+  let answer;
+  if (parsedArgs.values.yes) {
+    console.log("Continue anyway? (y/n) y (auto)");
+    answer = "y";
+  } else {
+    answer = await new Promise((resolve) => {
+      rl.question("Continue anyway? (y/n) ", (a) => { rl.close(); resolve(a); });
     });
-  });
+  }
 
   if (answer.toLowerCase() !== "y") {
     console.log("Check workflow order. Run collect-direct-commits.js first.");
@@ -153,15 +161,18 @@ if (!parsedArgs.values["force-refresh"] && fs.existsSync(RAW_PR_CACHE_PATH)) {
     output: process.stdout,
   });
 
-  const answer = await new Promise((resolve) => {
-    rl.question(
-      `Found cached PR data (${N} PRs). Use (C)ache or (R)e-fetch from GitHub? (c/r): `,
-      (answer) => {
-        rl.close();
-        resolve(answer);
-      },
-    );
-  });
+  let answer;
+  if (parsedArgs.values["use-cache"] || parsedArgs.values["force-refresh"]) {
+    answer = parsedArgs.values["force-refresh"] ? "r" : "c";
+    console.log(`Found cached PR data (${N} PRs). Use (C)ache or (R)e-fetch from GitHub? (c/r): ${answer} (auto)`);
+  } else {
+    answer = await new Promise((resolve) => {
+      rl.question(
+        `Found cached PR data (${N} PRs). Use (C)ache or (R)e-fetch from GitHub? (c/r): `,
+        (a) => { rl.close(); resolve(a); },
+      );
+    });
+  }
 
   if (answer.toLowerCase() === "c") {
     useRawCache = true;
@@ -183,7 +194,7 @@ if (providers.length === 0) {
   process.exit(1);
 }
 
-const selectedProvider = await promptProviderSelection(providers);
+const selectedProvider = await promptProviderSelection(providers, parsedArgs.values.ai ?? null);
 
 // ============================================================================
 // Section 7 — Cache Initialization (Resume Support)
@@ -550,15 +561,18 @@ Respond ONLY with valid JSON, no markdown fences.`;
         output: process.stdout,
       });
 
-      const answer = await new Promise((resolve) => {
-        rl.question(
-          "No GitHub PRs found in date range. Continue anyway? (y/n) ",
-          (answer) => {
-            rl.close();
-            resolve(answer);
-          },
-        );
-      });
+      let answer;
+      if (parsedArgs.values.yes) {
+        console.log("No GitHub PRs found in date range. Continue anyway? (y/n) y (auto)");
+        answer = "y";
+      } else {
+        answer = await new Promise((resolve) => {
+          rl.question(
+            "No GitHub PRs found in date range. Continue anyway? (y/n) ",
+            (a) => { rl.close(); resolve(a); },
+          );
+        });
+      }
 
       if (answer.toLowerCase() !== "y") {
         console.log("Check config.json github settings.");

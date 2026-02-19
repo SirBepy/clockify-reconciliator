@@ -29,11 +29,21 @@ export function listProviders() {
 /**
  * Interactive provider selection
  * @param {string[]} providers - Array of available providers
+ * @param {number|null} defaultIndex - 1-based index to auto-select without prompting
  * @returns {Promise<string>} Selected provider name
  */
-export async function promptProviderSelection(providers) {
+export async function promptProviderSelection(providers, defaultIndex = null) {
   if (!Array.isArray(providers) || providers.length === 0) {
     throw new Error("No providers available");
+  }
+
+  if (defaultIndex !== null) {
+    const idx = parseInt(defaultIndex, 10) - 1;
+    if (!isNaN(idx) && idx >= 0 && idx < providers.length) {
+      console.log(`AI provider: ${providers[idx]} (auto-selected)`);
+      return providers[idx];
+    }
+    console.warn(`Invalid --ai value "${defaultIndex}", falling back to prompt.`);
   }
 
   const menu = providers

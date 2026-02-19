@@ -43,6 +43,14 @@ npm run full
 
 Runs all 5 steps in order. If a step fails, re-running `npm run full` will ask whether to resume from the failed step or start over.
 
+**Fully automated (walk away):**
+
+```bash
+npm run full -- --ai 1 --use-cache --yes
+```
+
+Skips all prompts and runs without any interaction. See [CLI Flags](#cli-flags) for details.
+
 ### Run individual steps
 
 Each step can be run by name or by number:
@@ -57,7 +65,7 @@ Each step can be run by name or by number:
 
 Each step is idempotent — re-running without `--force-refresh` uses cached results.
 
-Steps 3–5 prompt for AI provider selection interactively.
+Steps 3–5 prompt for AI provider selection interactively (or use `--ai <number>` to skip).
 
 ---
 
@@ -65,11 +73,37 @@ Steps 3–5 prompt for AI provider selection interactively.
 
 Pass flags after `--` when using npm scripts, e.g. `npm run github -- --force-refresh`.
 
-| Flag                     | Tool(s)                    | Description                                       |
-| ------------------------ | -------------------------- | ------------------------------------------------- |
-| `--input <path>` / `-i`  | `preprocess` / `step1` only | Override input CSV path (overrides `config.json`) |
-| `--force-refresh` / `-f` | All tools                  | Clear this tool's cache and start fresh           |
-| `--help` / `-h`          | All tools                  | Print usage and exit                              |
+| Flag                     | Tool(s)                     | Description                                                      |
+| ------------------------ | --------------------------- | ---------------------------------------------------------------- |
+| `--ai <number>`          | `full`, steps 3–5           | Auto-select AI provider by number (e.g. `--ai 1` = claude-haiku) |
+| `--use-cache`            | `full`, `github` / `step3`  | Use existing PR cache without prompting                          |
+| `--yes` / `-y`           | `full`, steps 3–5           | Auto-confirm all y/n prompts (patterns, token estimate, etc.)    |
+| `--force-refresh` / `-f` | All tools                   | Clear this tool's cache and re-fetch from source                 |
+| `--input <path>` / `-i`  | `preprocess` / `step1` only | Override input CSV path (overrides `config.json`)                |
+| `--help` / `-h`          | All tools                   | Print usage and exit                                             |
+
+**AI provider numbers** (as shown in the selection menu):
+
+| Number | Provider |
+| ------ | -------- |
+| 1 | claude-haiku — fastest, lowest cost |
+| 2 | claude-opus — most capable |
+| 3 | claude-sonnet — balanced |
+| 4 | gemini-flash — fast, lower cost |
+| 5 | gemini-pro — most capable Gemini |
+
+**Common automated invocations:**
+
+```bash
+# Full run, no interaction, use existing PR cache, claude-haiku
+npm run full -- --ai 1 --use-cache --yes
+
+# Re-fetch all GitHub data, then run fully automated
+npm run full -- --ai 1 --force-refresh --yes
+
+# Run only the enricher step, no prompts
+npm run step5 -- --ai 1 --yes
+```
 
 **Note on `--force-refresh` scope for the enricher**: `npm run enrich -- --force-refresh` clears only `cache/patterns.json` and `cache/enrichment-progress.ndjson`. The GitHub and Jira caches are **not** cleared; to refresh those, run `npm run github -- --force-refresh` or `npm run jira -- --force-refresh` separately.
 

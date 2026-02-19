@@ -34,19 +34,20 @@ const JIRA_PAGE_SIZE = 50;
 // ============================================================================
 
 const options = {
-  "force-refresh": {
-    type: "boolean",
-    short: "f",
-  },
-  help: {
-    type: "boolean",
-    short: "h",
-  },
+  "force-refresh": { type: "boolean", short: "f" },
+  ai: { type: "string" },
+  yes: { type: "boolean", short: "y" },
+  help: { type: "boolean", short: "h" },
 };
+
+if (process.argv.includes("--default-params")) {
+  const idx = process.argv.indexOf("--default-params");
+  process.argv.splice(idx, 1, "--ai", "1", "--use-cache", "--yes");
+}
 
 let parsedArgs;
 try {
-  parsedArgs = parseArgs({ options });
+  parsedArgs = parseArgs({ options, strict: false });
 } catch (error) {
   console.error(`Failed to parse CLI arguments: ${error.message}`);
   process.exit(1);
@@ -61,6 +62,8 @@ Usage:
 
 Options:
   --force-refresh, -f     Clear cache and fetch fresh data
+  --ai <number>           Auto-select AI provider by number (e.g. --ai 1)
+  --yes, -y               Auto-confirm all prompts
   --help, -h              Show this help message
 `);
   process.exit(0);
@@ -101,7 +104,7 @@ if (providers.length === 0) {
   process.exit(1);
 }
 
-const selectedProvider = await promptProviderSelection(providers);
+const selectedProvider = await promptProviderSelection(providers, parsedArgs.values.ai ?? null);
 
 // ============================================================================
 // Section 6 — Cache Initialization (Resume Support)
@@ -414,15 +417,18 @@ ${descriptionText}`;
         output: process.stdout,
       });
 
-      const answer = await new Promise((resolve) => {
-        rl.question(
-          "No Jira tickets found in date range. Continue anyway? (y/n) ",
-          (answer) => {
-            rl.close();
-            resolve(answer);
-          },
-        );
-      });
+      let answer;
+      if (parsedArgs.values.yes) {
+        console.log("No Jira tickets found in date range. Continue anyway? (y/n) y (auto)");
+        answer = "y";
+      } else {
+        answer = await new Promise((resolve) => {
+          rl.question(
+            "No Jira tickets found in date range. Continue anyway? (y/n) ",
+            (a) => { rl.close(); resolve(a); },
+          );
+        });
+      }
 
       if (answer.toLowerCase() !== "y") {
         console.log("Check config.json jira settings.");
